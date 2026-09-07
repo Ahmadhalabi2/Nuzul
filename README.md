@@ -1,117 +1,127 @@
-# نُزُل — Nuzul Booking Dashboard
+<div align="center">
 
-منصة حجز فنادق سورية متكاملة مع لوحة تحكم إدارية.
+# نُزُل — Nuzul
+
+### منصة حجز الفنادق السورية
+
+**React 18 + TypeScript · Laravel 11 · MySQL**
+
+</div>
 
 ---
 
-## التقنيات المستخدمة
+## نظرة عامة
 
-### الفرونتاند
-- React 18 + TypeScript
-- Zustand (إدارة الحالة)
-- React Router v6
-- Recharts (الرسوم البيانية)
-- Lucide React (الأيقونات)
-- Framer Motion
+نُزُل منصة متكاملة لحجز الفنادق السورية، تضم لوحة تحكم إدارية كاملة وتجربة مستخدم سلسة. المشروع مبني على فرونتاند React مع باكاند Laravel يوفر REST API موثوق.
 
-### الباكاند
-- Node.js + Express
-- MongoDB + Mongoose
-- JWT للمصادقة
-- Nodemailer (إرسال إيميل OTP وتأكيد الحجز)
-- Multer (رفع الصور)
-- bcryptjs (تشفير كلمات السر)
+---
+
+## التقنيات
+
+| الطبقة | التقنية |
+|--------|---------|
+| Frontend | React 18، TypeScript، React Router v6 |
+| State | Zustand |
+| Charts | Recharts |
+| Icons | Lucide React |
+| Backend | Laravel 11 (PHP 8.2) |
+| Auth | Laravel Sanctum (API Tokens) |
+| Database | MySQL |
+| Email | Laravel Mail + SMTP |
+| AI Chatbot | Google Gemini API |
 
 ---
 
 ## هيكل المشروع
 
 ```
-booking-admin-dashboard/
-├── backend/                    # Node.js API
-│   ├── server.js               # نقطة الدخول
-│   ├── src/
-│   │   ├── db/
-│   │   │   └── connect.js      # الاتصال بـ MongoDB
-│   │   ├── models/
-│   │   │   ├── User.js
-│   │   │   ├── Notification.js
-│   │   │   └── SupportThread.js
-│   │   ├── routes/
-│   │   │   ├── auth.js         # تسجيل دخول، OTP، تسجيل
-│   │   │   ├── notifications.js
-│   │   │   ├── support.js      # دردشة الدعم الفني
-│   │   │   ├── upload.js       # رفع صور البروفايل
-│   │   │   └── bookings.js     # إرسال إيميل تأكيد الحجز
-│   │   ├── services/
-│   │   │   ├── emailService.js
-│   │   │   └── otpStore.js
-│   │   └── middleware/
-│   │       └── rateLimiter.js
-│   └── .env.example
-│
-├── src/                        # React Frontend
+Nuzul/
+├── src/                          # React Frontend
 │   ├── components/
-│   │   ├── Layout.tsx
-│   │   ├── HotelBookingFlow.tsx
-│   │   ├── RatingModal.tsx
-│   │   └── AvatarUpload.tsx
+│   │   ├── HotelBookingFlow.tsx  # منطق الحجز الموحّد
+│   │   ├── LiveBookingBar.tsx    # شريط الحجوزات الحية
+│   │   ├── ChatbotWidget.tsx     # مساعد AI
+│   │   ├── HotelFormModal.tsx    # نموذج إضافة/تعديل فندق
+│   │   ├── RatingModal.tsx       # تقييم الفنادق
+│   │   └── Layout.tsx            # الهيكل العام
 │   ├── pages/
-│   │   ├── StartPage.tsx
-│   │   ├── LoginPage.tsx
-│   │   ├── SignupPage.tsx       # OTP + تسجيل مباشر
-│   │   ├── DashboardPage.tsx
-│   │   ├── bookings/
-│   │   ├── hotels/
-│   │   ├── analytics/
-│   │   ├── my-bookings/
-│   │   ├── notifications/
-│   │   ├── support/
-│   │   ├── profile/
-│   │   └── settings/
+│   │   ├── home/
+│   │   │   ├── HomePageUser.tsx  # الصفحة الرئيسية للمستخدم
+│   │   │   └── HomePageAdmin.tsx # لوحة التحكم الإدارية
+│   │   ├── hotels/               # إدارة الفنادق
+│   │   ├── bookings/             # إدارة الحجوزات (أدمن)
+│   │   ├── my-bookings/          # حجوزاتي (مستخدم)
+│   │   ├── book-hotel/           # استكمال الحجز
+│   │   ├── analytics/            # التحليلات والإحصائيات
+│   │   ├── support/              # الدعم الفني
+│   │   ├── notifications/        # الإشعارات
+│   │   ├── users/                # إدارة المستخدمين
+│   │   ├── revenue/              # الإيرادات
+│   │   └── settings/             # الإعدادات
+│   ├── services/
+│   │   └── api.ts                # كل الـ API calls مركّزة
 │   └── store/
-│       ├── authStore.ts
-│       ├── bookingsStore.ts
-│       ├── notifEvents.ts
-│       ├── supportChatStore.ts
-│       └── ratingsStore.ts
-└── .gitignore
+│       └── authStore.ts          # حالة المصادقة
+│
+└── laravel-backend/              # Laravel API
+    ├── app/
+    │   ├── Http/Controllers/API/
+    │   │   ├── AuthController.php
+    │   │   ├── BookingController.php
+    │   │   ├── HotelController.php
+    │   │   ├── NotificationController.php
+    │   │   ├── RatingController.php
+    │   │   ├── SupportController.php
+    │   │   ├── ChatbotController.php
+    │   │   └── UploadController.php
+    │   └── Models/
+    ├── database/
+    │   ├── migrations/
+    │   └── seeders/
+    └── routes/
+        └── api.php
 ```
 
 ---
 
 ## الميزات
 
-### المصادقة
-- تسجيل حساب جديد بـ OTP عبر Gmail / Yahoo / Outlook
-- تسجيل مباشر بدون OTP للإيميلات الأخرى
-- JWT للجلسات (صالح 7 أيام)
+### المصادقة والأدوار
+- تسجيل حساب جديد مع OTP عبر البريد الإلكتروني
+- تسجيل دخول بـ Token (Laravel Sanctum)
+- إعادة تعيين كلمة المرور عبر OTP
 
-### الأدوار
 | الدور | الصلاحيات |
 |-------|-----------|
-| `superadmin` | لوحة التحكم الكاملة، إدارة الحجوزات، الإشعارات، التحليلات |
-| `support` | صندوق الدعم الفني فقط |
-| `user` | حجز الفنادق، متابعة الحجوزات، الدعم الفني |
+| `superadmin` | لوحة التحكم الكاملة، إدارة الفنادق والحجوزات والمستخدمين، التحليلات |
+| `user` | حجز الفنادق، متابعة الحجوزات، الدعم الفني، التقييمات |
 
 ### إدارة الحجوزات
-- دورة حياة كاملة: pending → accepted → paid → completed
-- إشعار فوري للمستخدم عند كل قرار
-- إرسال إيميل تأكيد HTML احترافي للمستخدمين (Gmail/Yahoo/Outlook)
+- دورة حياة كاملة: `pending_admin` → `accepted` → `paid` → `completed`
+- إشعار فوري للمستخدم عند كل تغيير بالحالة
+- إرسال إيميل تأكيد HTML للمستخدم
 - تصدير الحجوزات كـ CSV
 
-### الإشعارات
-- إشعارات real-time عبر HTTP polling كل 30 ثانية
-- موجّهة لكل مستخدم حسب دوره
+### الفنادق
+- إضافة وتعديل وحذف الفنادق مع رفع الصور
+- فلترة حسب المحافظة والمدينة والسعر والتقييم
+- عروض خاصة وتسعير مرن
+
+### Live Social Proof
+- شريط **نبضات الحجز** يعرض آخر الحجوزات المؤكدة في الوقت الفعلي
+- يزيد الثقة ويحفز على الحجز الفوري
 
 ### الدعم الفني
-- محادثات real-time بين المستخدمين وفريق الدعم
-- Feedback system
-- يعمل عبر أجهزة مختلفة
+- محادثات مباشرة بين المستخدمين والأدمن
+- نظام Feedback للجلسات المنتهية
 
-### تقييم الفنادق
-- نجوم 1-5 + تعليق
-- متاح للحجوزات المكتملة فقط
+### مساعد AI
+- Chatbot مدعوم بـ Google Gemini
+- يجيب على أسئلة الحجز والفنادق
+
+### التحليلات
+- إحصائيات الإيرادات والحجوزات
+- رسوم بيانية تفاعلية
 
 ---
 
@@ -119,43 +129,69 @@ booking-admin-dashboard/
 
 ### المتطلبات
 - Node.js 18+
-- حساب MongoDB Atlas
-- Gmail App Password
-
-### الباكاند
-```bash
-cd backend
-npm install
-cp .env.example .env
-# عدّل .env بمعلوماتك
-npm run dev
-```
+- PHP 8.2+
+- Composer
+- MySQL
 
 ### الفرونتاند
+
 ```bash
 npm install
 npm start
 ```
 
+### الباكاند
+
+```bash
+cd laravel-backend
+composer install
+cp .env.example .env
+php artisan key:generate
+# عدّل .env بمعلومات قاعدة البيانات والبريد
+php artisan migrate --seed
+php artisan serve
+```
+
 ---
 
-## متغيرات البيئة (backend/.env)
+## متغيرات البيئة (laravel-backend/.env)
 
 ```env
-PORT=5000
-CLIENT_URL=http://localhost:3000
-JWT_SECRET=your_secret_key
-OTP_EXPIRY_MINUTES=10
-MAIL_USER=your_gmail@gmail.com
-MAIL_PASS=your_app_password
-MAIL_FROM_NAME=نُزُل - Nuzul
-MONGODB_URI=mongodb+srv://...
+APP_URL=http://localhost:8000
+
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=nuzul
+DB_USERNAME=root
+DB_PASSWORD=
+
+MAIL_MAILER=smtp
+MAIL_HOST=smtp.gmail.com
+MAIL_PORT=587
+MAIL_USERNAME=your_email@gmail.com
+MAIL_PASSWORD=your_app_password
+MAIL_FROM_NAME="نُزُل - Nuzul"
+
+GEMINI_API_KEY=your_gemini_key
+
+FRONTEND_URL=http://localhost:3000
 ```
 
 ---
 
 ## النشر
 
-- **الفرونتاند:** Vercel
-- **الباكاند:** Railway
-- **قاعدة البيانات:** MongoDB Atlas
+| الجزء | المنصة المقترحة |
+|-------|----------------|
+| Frontend | Vercel / Netlify |
+| Backend | Railway / Render |
+| Database | PlanetScale / Railway MySQL |
+
+---
+
+<div align="center">
+
+صُنع بـ ❤️ لخدمة السياحة السورية
+
+</div>
