@@ -11,6 +11,9 @@ return new class extends Migration
         Schema::table('users', function (Blueprint $table) {
             $table->boolean('onboarding_completed')->default(false)->after('avatar');
         });
+
+        // المستخدمون الموجودون قبل هذا الـ migration نعتبرهم أكملوا الـ onboarding
+        \DB::table('users')->update(['onboarding_completed' => true]);
     }
 
     public function down(): void

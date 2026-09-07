@@ -45,8 +45,10 @@ function AdminHome() {
 function UserHome() {
   const { currentUser } = useAuthStore();
 
-  // لو ما أكمل الـ onboarding بعد → نوجّهه قبل ما يشوف الصفحة
-  if (currentUser && currentUser.onboarding_completed === false) {
+  // لو ما أكمل الـ onboarding بعد → مستخدم جديد سجّل للتو
+  // onboarding_completed === false (explicit) يعني جديد
+  // onboarding_completed === undefined يعني مستخدم قديم → تجاهل
+  if (currentUser?.role === 'user' && currentUser?.onboarding_completed === false) {
     return <Navigate to="/onboarding" replace />;
   }
 
