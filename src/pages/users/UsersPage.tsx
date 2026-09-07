@@ -175,7 +175,7 @@ const S: Record<string, React.CSSProperties> = {
   searchBox:  { display: 'flex', alignItems: 'center', gap: 8, background: '#fff', border: '1px solid #E5DFC8', borderRadius: 8, padding: '8px 12px', flex: 1, minWidth: 200 },
   searchIn:   { background: 'none', border: 'none', outline: 'none', fontSize: 14, color: '#1C2B27', width: '100%', fontFamily: "'Tajawal',sans-serif" },
   filterGroup:{ display: 'flex', gap: 6, flexWrap: 'wrap' },
-  filterBtn:  { padding: '8px 14px', borderRadius: 8, border: '1px solid #E5DFC8', background: '#fff', color: '#52655F', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: "'Tajawal',sans-serif" },
+  filterBtn:  { padding: '8px 14px', borderRadius: 8, borderWidth: '1px', borderStyle: 'solid', borderColor: '#E5DFC8', background: '#fff', color: '#52655F', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: "'Tajawal',sans-serif" },
   filterActive:{ background: '#E1EEE7', color: '#0A4437', borderColor: '#0E5C4A' },
   tableWrap:  { background: '#fff', border: '1px solid #E5DFC8', borderRadius: 14, overflow: 'auto', direction: 'rtl' },
   table:      { width: '100%', borderCollapse: 'collapse', minWidth: 600, fontFamily: "'Tajawal',sans-serif" },

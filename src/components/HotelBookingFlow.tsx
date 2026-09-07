@@ -1,8 +1,5 @@
-import { useState, useMemo, useCallback, useRef } from 'react';
+import { useState } from 'react';
 import { MapPin, Star, X, Calendar, UserPlus, Tag, Coins, Info, Sparkles } from 'lucide-react';
-import { useAuthStore } from '../store/authStore';
-import { useNotifEventsStore } from '../store/notifEvents';
-import { useBookingsStore } from '../store/bookingsStore';
 import { useHotelsStore } from '../store/hotelsStore';
 import { SYRIA_PROVINCES, SYRIA_HOTELS } from '../data/syria';
 
@@ -79,6 +76,7 @@ export type DisplayHotel = {
   originalPrice?: number;
   amenities: string[];
   offerText?: string;
+  tag?: string;
 };
 
 export function buildDisplayHotels(): DisplayHotel[] {
@@ -108,160 +106,37 @@ export function buildDisplayHotels(): DisplayHotel[] {
 // مباشرة لصفحة "حجوزاتي" — بدون أي نافذة نجاح وسيطة.
 // ─────────────────────────────────────────────────────────────────────────────
 export function useHotelBookingFlow(navigate?: (path: string) => void) {
-  const { currentUser } = useAuthStore();
-  const { addEvent } = useNotifEventsStore();
-  const bookingsStore = useBookingsStore() as any; // يدعم addBooking إن وجد بالمتجر
   const { hotels } = useHotelsStore();
 
-  // دالة لتحويل اسم فندق (من SYRIA_HOTELS) إلى ID رقمي من hotelsStore
-  // تستخدم خريطة ثابتة من أسماء الفنادق (بدون الأقواس الإنجليزية) إلى المعرفات الرقمية
-  const resolveNumericHotelIdRef = useRef<Map<string, number>>(undefined);
-  const resolveNumericHotelId = useCallback((hotelName: string): number => {
-    if (!hotelName) return 0;
-    let map = resolveNumericHotelIdRef.current;
-    if (!map) {
-      map = new Map<string, number>();
-      SYRIA_HOTELS.forEach((syriaHotel, index) => {
-        const numericId = index + 1; // same indexing as SYRIAN_SEED_HOTELS
-        // إضافة الاسم الكامل (بدون الأقواس)
-        const cleanMain = syriaHotel.name.replace(/\([^)]*\)/g, '').trim().toLowerCase();
-        map!.set(cleanMain, numericId);
-        // إضافة أول 15 حرف
-        map!.set(cleanMain.slice(0, 15), numericId);
-        // إضافة الاسم الإنجليزي بين قوسين إن وجد
-        const engMatch = syriaHotel.name.match(/\(([^)]+)\)/);
-        if (engMatch) {
-          map!.set(engMatch[1].toLowerCase(), numericId);
-        }
-      });
-      // إضافة الخريطة من hotels store أيضاً (للفنادق المضافة لاحقاً)
-      hotels.forEach((h) => {
-        const cleanName = h.name.replace(/\([^)]*\)/g, '').trim().toLowerCase();
-        map!.set(cleanName, h.id);
-        map!.set(cleanName.slice(0, 15), h.id);
-      });
-      resolveNumericHotelIdRef.current = map;
-    }
-
-    const searchName = hotelName.replace(/\([^)]*\)/g, '').trim().toLowerCase();
-    return map.get(searchName) ?? 
-           map.get(searchName.slice(0, 15)) ?? 
-           0;
-  }, [hotels]);
-
   const [viewHotel, setViewHotel] = useState<DisplayHotel | null>(null);
-  const [bookingHotel, setBookingHotel] = useState<DisplayHotel | null>(null);
-  const [checkInDate, setCheckInDate] = useState('');
-  const [checkOutDate, setCheckOutDate] = useState('');
-  const [guestsCount, setGuestsCount] = useState(1);
-  const [roomType, setRoomType] = useState('standard');
-  const [notes, setNotes] = useState('');
-  const [selectedExtras, setSelectedExtras] = useState<string[]>([]);
 
-  const openDetails = (hotel: DisplayHotel) => setViewHotel(hotel);
+  const openDetails  = (hotel: DisplayHotel) => setViewHotel(hotel);
   const closeDetails = () => setViewHotel(null);
-  const closeBooking = () => setBookingHotel(null);
 
-  const toggleExtra = (id: string) => {
-    setSelectedExtras((prev) => (prev.includes(id) ? prev.filter((e) => e !== id) : [...prev, id]));
-  };
-
+  // عند الضغط على "احجز الآن" نتنقل لـ BookHotelPage مع بيانات الفندق كاملة
   const startBooking = (hotel: DisplayHotel) => {
-    const today = new Date().toISOString().split('T')[0];
-    const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
-    setCheckInDate(today);
-    setCheckOutDate(tomorrow);
-    setGuestsCount(1);
-    setRoomType('standard');
-    setNotes('');
-    setSelectedExtras([]);
-    setBookingHotel(hotel);
     setViewHotel(null);
-  };
-
-  const nights = useMemo(() => {
-    if (!checkInDate || !checkOutDate) return 1;
-    const diff = (new Date(checkOutDate).getTime() - new Date(checkInDate).getTime()) / 86400000;
-    return diff > 0 ? Math.round(diff) : 1;
-  }, [checkInDate, checkOutDate]);
-
-  // إجمالي الإضافات المختارة بشكل تناسبي حسب سعر الفندق وعدد الليالي
-  const extrasAmount = useMemo(() => {
-    if (!bookingHotel) return 0;
-    return EXTRAS_CATALOG
-      .filter((ex) => selectedExtras.includes(ex.id))
-      .reduce((sum, ex) => sum + calcExtraPrice(ex, bookingHotel.price, nights), 0);
-  }, [bookingHotel, selectedExtras, nights]);
-
-  const roomsTotal = bookingHotel ? bookingHotel.price * nights : 0;
-  const grandTotal = roomsTotal + extrasAmount;
-
-  const confirmBooking = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!bookingHotel) return;
-
-    const totalAmount = Math.round(roomsTotal + extrasAmount);
-    const bookingId = `BK-${Date.now().toString().slice(-6)}`;
-    const chosenExtras = EXTRAS_CATALOG.filter((ex) => selectedExtras.includes(ex.id));
-    const extrasLabels = chosenExtras.map((ex) => ex.label);
-
-    try {
-      // إشعار فوري للأدمن
-      addEvent({
-        bookingId,
-        createdByUserId: currentUser?.id || 'guest_user',
-        createdByName: currentUser?.name || 'مستخدم زائر',
-        targetRole: 'superadmin',
-        type: 'booking_created',
-        title: 'طلب تثبيت حجز جديد بانتظار الموافقة',
-        desc: `حجز لـ ${bookingHotel.name} من ${checkInDate} إلى ${checkOutDate} لعدد ${guestsCount} نزلاء (${nights} ليالي). نوع الغرفة: ${roomType === 'standard' ? 'قياسية' : roomType === 'suite' ? 'جناح ملكي' : 'جناح عائلي'}.${extrasLabels.length ? ` إضافات مختارة: ${extrasLabels.join('، ')}.` : ''}`,
-      });
-
-      // تسجيل الحجز الفعلي بنفس آلية store — استخدم createBooking (لأنه الموجود في bookingsStore)
-      // ملاحظة: createBooking يولّد id تلقائياً، لذلك ما بنمرّر id جاهز.
-      if (typeof bookingsStore.createBooking === 'function') {
-        // تحويل اسم الفندق إلى ID رقمي صحيح لتظهر الحجوزات عند المدير
-        const numericHotelId = resolveNumericHotelId(bookingHotel.name);
-        const created = bookingsStore.createBooking({
-          userId:    currentUser?.id    || '',
-          userEmail: currentUser?.email || '',
-          userName:  currentUser?.name  || 'مستخدم زائر',
-          hotelId: numericHotelId, // ID رقمي صحيح بدلاً من 0
-          hotelName: bookingHotel.name,
-          country: 'سوريا',
-          city: bookingHotel.city,
-          checkIn: checkInDate,
-          checkOut: checkOutDate,
-          nights,
-          guests: guestsCount,
-          amount: totalAmount,
-          status: 'pending_admin',
-        });
-
-        // إذا كان id مولّد فبدنا نخلي id الحقيقي بالـ navigation/لأدمن إشعار
-        // (الإشعار فوق مبني على bookingId، وبما أنه ليس مصدر من store، بنتركه كما هو)
-        // لكن لو بدنا نحدّث bookingId نقدر لاحقاً.
-        void created;
-      }
-
-
-      setBookingHotel(null);
-      setSelectedExtras([]);
-
-      // تثبيت مباشر — بدون نافذة نجاح وسيطة، ينتقل مباشرة لصفحة حجوزاتي للمستخدم
-      if (navigate) navigate('/my-bookings');
-    } catch (error) {
-      console.error('فشل في إتمام عملية الحجز وإرسال الإشعار:', error);
+    if (navigate) {
+      // نحفظ الفندق في sessionStorage ليقرأه BookHotelPage
+      sessionStorage.setItem('nuzul_booking_hotel', JSON.stringify(hotel));
+      navigate(`/book-hotel/${hotel.id}`);
     }
   };
 
   return {
     viewHotel, openDetails, closeDetails,
-    bookingHotel, startBooking, closeBooking,
-    checkInDate, setCheckInDate, checkOutDate, setCheckOutDate,
-    guestsCount, setGuestsCount, roomType, setRoomType, notes, setNotes,
-    selectedExtras, toggleExtra, extrasAmount, roomsTotal, grandTotal,
-    nights, confirmBooking,
+    startBooking,
+    // القيم التالية محتاجة للتوافق مع الكود الحالي
+    bookingHotel: null as DisplayHotel | null,
+    closeBooking: () => {},
+    checkInDate: '', setCheckInDate: (_: string) => {},
+    checkOutDate: '', setCheckOutDate: (_: string) => {},
+    guestsCount: 1, setGuestsCount: (_: number) => {},
+    roomType: 'standard', setRoomType: (_: string) => {},
+    notes: '', setNotes: (_: string) => {},
+    selectedExtras: [] as string[], toggleExtra: (_: string) => {},
+    extrasAmount: 0, roomsTotal: 0, grandTotal: 0, nights: 1,
+    confirmBooking: (_: React.FormEvent) => {},
   };
 }
 

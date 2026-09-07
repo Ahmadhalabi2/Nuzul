@@ -3,29 +3,19 @@ import { useNavigate } from 'react-router-dom';
 
 import { useAuthStore } from '../store/authStore';
 import { useHotelsStore } from '../store/hotelsStore';
-import { HOTELS } from '../data/hotels';
 import { SYRIA_PROVINCES } from '../data/syria';
 import { ArrowLeft, CalendarCheck, Shield, Wallet, Clock, Hotel } from 'lucide-react';
 
 export default function StartPage() {
   const navigate = useNavigate();
   const { currentUser } = useAuthStore();
-  const { initFrom, hotels } = useHotelsStore();
+  const { hotels } = useHotelsStore();
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = previousOverflow; };
   }, []);
-
-  useEffect(() => {
-    initFrom(
-      HOTELS.map((h) => ({
-        ...h,
-        amenities: h.amenities,
-      }))
-    );
-  }, [initFrom]);
 
   const activeHotelsCount = useMemo(() => hotels.filter((h) => h.status === 'active').length, [hotels]);
 

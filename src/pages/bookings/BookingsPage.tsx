@@ -1,9 +1,9 @@
-import { useState, useMemo } from 'react';
-import { Search, Calendar, CheckCircle, Clock, XCircle, Eye, Trash2, Download, Mail } from 'lucide-react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
+import { Search, Calendar, CheckCircle, Clock, XCircle, Eye, Trash2, Download, Mail, Loader2 } from 'lucide-react';
 import Layout from '../../components/Layout';
-import { useBookingsStore, type Booking } from '../../store/bookingsStore';
 import { useAuthStore } from '../../store/authStore';
-import { useNotifEventsStore } from '../../store/notifEvents';
+import { bookingsApi } from '../../services/api';
+import type { Booking } from '../../store/bookingsStore';
 
 import { BACKEND_URL } from '../../config';
 const BACKEND = BACKEND_URL;
@@ -46,86 +46,182 @@ const TABS: { key: 'all' | BookingStatus; label: string }[] = [
   { key: 'cancelled_by_user',        label: 'ملغى بالمستخدم' },
 ];
 
+// تحويل بيانات الباك اند
+function mapBooking(b: any): Booking {
+  return {
+    id:            String(b.id),
+    userId:        String(b.userId  ?? b.user_id  ?? ''),
+    userEmail:     b.userEmail  ?? b.user_email  ?? '',
+    userName:      b.userName   ?? b.user_name   ?? '',
+    hotelId:       Number(b.hotelId  ?? b.hotel_id  ?? 0),
+    hotelName:     b.hotelName  ?? b.hotel_name  ?? '',
+    country:       b.country    ?? 'سوريا',
+    city:          b.city       ?? '',
+    checkIn:       b.checkIn    ?? b.check_in    ?? '',
+    checkOut:      b.checkOut   ?? b.check_out   ?? '',
+    nights:        Number(b.nights  ?? 1),
+    guests:        Number(b.guests  ?? 1),
+    amount:        Number(b.amount  ?? 0),
+    status:        b.status     as Booking['status'],
+    createdAt:     b.createdAt  ?? b.created_at  ? new Date(b.createdAt ?? b.created_at).getTime() : Date.now(),
+    decidedAt:     b.decidedAt  ?? b.decided_at  ? new Date(b.decidedAt ?? b.decided_at).getTime() : undefined,
+    paidAt:        b.paidAt     ?? b.paid_at     ? new Date(b.paidAt    ?? b.paid_at).getTime()    : undefined,
+    decidedById:   String(b.decidedById  ?? b.decided_by_id  ?? ''),
+    decidedByName: b.decidedByName ?? b.decided_by_name ?? '',
+    reason:        b.reason ?? '',
+  };
+}
+
 export default function BookingsPage() {
   const { currentUser } = useAuthStore();
   const isAdmin = currentUser?.role === 'superadmin';
-  const actor   = currentUser ? { id: currentUser.id, name: currentUser.name } : { id: '', name: '' };
 
-  const { bookings, adminAccept, adminCancel, adminMarkPaid, adminMarkCompleted, deleteBookingCompletely } = useBookingsStore();
-  const { addEvent } = useNotifEventsStore();
-
-  const [tab,    setTab]    = useState<'all' | BookingStatus>('all');
-  const [search, setSearch] = useState('');
-  const [reason, setReason] = useState('');
-  const [cancelModal, setCancelModal] = useState<string | null>(null);
-  const [sendingEmail, setSendingEmail] = useState<string | null>(null); // bookingId
+  const [bookings,     setBookings]     = useState<Booking[]>([]);
+  const [loading,      setLoading]      = useState(true);
+  const [tab,          setTab]          = useState<'all' | BookingStatus>('all');
+  const [search,       setSearch]       = useState('');
+  const [reason,       setReason]       = useState('');
+  const [cancelModal,  setCancelModal]  = useState<string | null>(null);
+  const [sendingEmail, setSendingEmail] = useState<string | null>(null);
   const [emailToast,   setEmailToast]   = useState<{ ok: boolean; msg: string } | null>(null);
+  const [actionLoading,setActionLoading]= useState<string | null>(null);
 
   const showEmailToast = (ok: boolean, msg: string) => {
     setEmailToast({ ok, msg });
     setTimeout(() => setEmailToast(null), 4000);
   };
 
-  const handleSendConfirmation = async (b: Booking) => {
-    if (!b.userEmail) { showEmailToast(false, 'لا يوجد إيميل مسجّل لهذا المستخدم.'); return; }
-    if (!isOtpEmail(b.userEmail)) { showEmailToast(false, 'إيميل المستخدم ليس Gmail/Yahoo/Outlook.'); return; }
-    setSendingEmail(b.id);
+  // ── جلب الحجوزات من الباك اند ──────────────────────────────────────────
+  const fetchBookings = useCallback(async () => {
+    setLoading(true);
     try {
-      const token = localStorage.getItem('nuzul_token') ?? '';
-      const res   = await fetch(`${BACKEND}/api/bookings/send-confirmation`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body:    JSON.stringify({ booking: b, userEmail: b.userEmail }),
-      });
-      const data = await res.json();
-      showEmailToast(data.success, data.message);
-    } catch { showEmailToast(false, 'تعذّر الاتصال بالخادم.'); }
-    finally { setSendingEmail(null); }
-  };
+      const res = await bookingsApi.list();
+      if (res.success) setBookings(res.bookings.map(mapBooking));
+    } catch {} finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { fetchBookings(); }, [fetchBookings]);
 
   const filtered = useMemo(() =>
     bookings
-      .filter((b) => tab === 'all' || b.status === tab)
-      .filter((b) => [b.id, b.userName, b.hotelName].some((v) => v.toLowerCase().includes(search.toLowerCase()))),
+      .filter(b => tab === 'all' || b.status === tab)
+      .filter(b => [b.id, b.userName, b.hotelName].some(v => v.toLowerCase().includes(search.toLowerCase()))),
     [bookings, tab, search]
   );
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: bookings.length };
-    TABS.slice(1).forEach(({ key }) => { c[key] = bookings.filter((b) => b.status === key).length; });
+    TABS.slice(1).forEach(({ key }) => { c[key] = bookings.filter(b => b.status === key).length; });
     return c;
   }, [bookings]);
 
-  // ── إرسال إشعار للمستخدم ───────────────────────────────────────────────
-  const notifyUser = (b: Booking, type: 'booking_accepted' | 'booking_cancelled' | 'booking_paid' | 'booking_completed', title: string, desc: string) => {
-    addEvent({ bookingId: b.id, createdByUserId: actor.id, createdByName: actor.name, targetRole: 'user', targetUserId: b.userId, type, title, desc });
+  // ── Optimistic update helper ───────────────────────────────────────────
+  const updateBooking = (id: string, changes: Partial<Booking>) => {
+    setBookings(prev => prev.map(b => b.id === id ? { ...b, ...changes } : b));
   };
 
-  const handleAccept = (b: Booking) => {
-    const r = adminAccept(b.id, actor);
-    if (r.success) notifyUser(b, 'booking_accepted', 'تم قبول حجزك ✅', `تم قبول حجزك في ${b.hotelName}. يرجى إتمام الدفع لتأكيد الإقامة.`);
+  const removeBooking = (id: string) => {
+    setBookings(prev => prev.filter(b => b.id !== id));
   };
 
-  const handleCancelConfirm = (b: Booking) => {
+  // ── إجراءات الأدمن — optimistic updates ────────────────────────────────
+  const handleAccept = async (b: Booking) => {
+    const prev = b.status;
+    updateBooking(b.id, { status: 'accepted_waiting_payment', decidedByName: currentUser?.name });
+    setActionLoading(b.id);
+    try {
+      const res = await bookingsApi.accept(Number(b.id));
+      if (!res.success) updateBooking(b.id, { status: prev }); // rollback
+    } catch {
+      updateBooking(b.id, { status: prev });
+      alert('تعذّر الاتصال بالخادم.');
+    } finally { setActionLoading(null); }
+  };
+
+  const handleCancelConfirm = async (b: Booking) => {
     if (!reason.trim()) return;
-    const r = adminCancel(b.id, actor, reason.trim());
-    if (r.success) notifyUser(b, 'booking_cancelled', 'تم إلغاء حجزك ❌', `تم إلغاء حجزك في ${b.hotelName}. السبب: ${reason.trim()}`);
+    const reasonText = reason.trim();
+    const prev = b.status;
     setCancelModal(null);
     setReason('');
+    updateBooking(b.id, {
+      status: 'cancelled_by_admin',
+      reason: reasonText,
+      decidedByName: currentUser?.name,
+    });
+    setActionLoading(b.id);
+    try {
+      const res = await bookingsApi.cancel(Number(b.id), reasonText);
+      if (!res.success) updateBooking(b.id, { status: prev, reason: '' });
+    } catch {
+      updateBooking(b.id, { status: prev, reason: '' });
+      alert('تعذّر الاتصال بالخادم.');
+    } finally { setActionLoading(null); }
   };
 
-  const handleMarkPaid = (b: Booking) => {
-    const r = adminMarkPaid(b.id, actor);
-    if (r.success) notifyUser(b, 'booking_paid', 'تم تأكيد دفع حجزك 💳', `تم تأكيد استلام الدفع لحجزك في ${b.hotelName}. حجزك مؤكد الآن!`);
+  const handleMarkPaid = async (b: Booking) => {
+    const prev = b.status;
+    updateBooking(b.id, { status: 'paid_confirmed', decidedByName: currentUser?.name });
+    setActionLoading(b.id);
+    try {
+      const res = await bookingsApi.markPaid(Number(b.id));
+      if (!res.success) updateBooking(b.id, { status: prev });
+    } catch {
+      updateBooking(b.id, { status: prev });
+      alert('تعذّر الاتصال بالخادم.');
+    } finally { setActionLoading(null); }
   };
 
-  const handleMarkCompleted = (b: Booking) => {
-    const r = adminMarkCompleted(b.id, actor);
-    if (r.success) notifyUser(b, 'booking_completed' as any, 'تمت إقامتك 🌟', `شكراً لإقامتك في ${b.hotelName}. نتمنى أن تكون تجربتك رائعة.`);
+  const handleMarkCompleted = async (b: Booking) => {
+    const prev = b.status;
+    updateBooking(b.id, { status: 'completed', decidedByName: currentUser?.name });
+    setActionLoading(b.id);
+    try {
+      const res = await bookingsApi.complete(Number(b.id));
+      if (!res.success) updateBooking(b.id, { status: prev });
+    } catch {
+      updateBooking(b.id, { status: prev });
+      alert('تعذّر الاتصال بالخادم.');
+    } finally { setActionLoading(null); }
+  };
+
+  const handleDelete = async (b: Booking) => {
+    if (!window.confirm('حذف هذا السجل نهائياً؟')) return;
+    removeBooking(b.id); // حذف فوري
+    try {
+      const res = await bookingsApi.delete(Number(b.id));
+      if (!res.success) {
+        // rollback — أعد الحجز للقائمة
+        setBookings(prev => [b, ...prev]);
+        alert(res.message);
+      }
+    } catch {
+      setBookings(prev => [b, ...prev]);
+      alert('تعذّر الاتصال بالخادم.');
+    }
+  };
+
+  const handleSendConfirmation = async (b: Booking) => {
+    if (!b.userEmail) { showEmailToast(false, 'لا يوجد إيميل مسجّل.'); return; }
+    if (!isOtpEmail(b.userEmail)) { showEmailToast(false, 'إيميل المستخدم ليس Gmail/Yahoo/Outlook.'); return; }
+    setSendingEmail(b.id);
+    try {
+      const res = await bookingsApi.sendConfirmation(Number(b.id), b.userEmail);
+      showEmailToast(res.success, res.message);
+    } catch { showEmailToast(false, 'تعذّر الاتصال.'); }
+    finally { setSendingEmail(null); }
   };
 
   return (
     <Layout>
+      {loading && (
+        <div style={{ display: 'flex', justifyContent: 'center', padding: 60, gap: 10, color: '#0E5C4A' }}>
+          <Loader2 size={22} style={{ animation: 'spin 1s linear infinite' }} />
+          <span style={{ fontFamily: "'Tajawal',sans-serif" }}>جاري تحميل الحجوزات...</span>
+          <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
+        </div>
+      )}
+      {!loading && (<>
       {/* Email Toast */}
       {emailToast && (
         <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', zIndex: 2000,
@@ -261,7 +357,7 @@ export default function BookingsPage() {
                             </>
                           )}
                           {(b.status === 'cancelled_by_admin' || b.status === 'cancelled_by_user' || b.status === 'completed') && (
-                            <button onClick={() => { if (confirm('حذف هذا السجل نهائياً؟')) deleteBookingCompletely(b.id); }}
+                            <button onClick={() => handleDelete(b)}
                               style={{ ...S.smallBtn, color: '#ef4444', borderColor: '#fca5a5' }} title="حذف">
                               <Trash2 size={14} />
                             </button>
@@ -276,6 +372,7 @@ export default function BookingsPage() {
           </tbody>
         </table>
       </div>
+      </>)}
     </Layout>
   );
 }
@@ -285,7 +382,7 @@ const S: Record<string, React.CSSProperties> = {
   sub:        { fontSize: 14, color: '#64748b', margin: 0, fontFamily: "'Tajawal',sans-serif" },
   exportBtn:  { display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', background: '#0A4437', color: '#fff', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: "'Tajawal',sans-serif" },
   tabs:       { display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 10, marginBottom: 16, borderBottom: '1px solid #e2e8f0' },
-  tab:        { display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 9999, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: "'Tajawal',sans-serif" },
+  tab:        { display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 9999, borderWidth: '1px', borderStyle: 'solid', borderColor: '#e2e8f0', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: "'Tajawal',sans-serif" },
   tabActive:  { background: '#0f172a', color: '#fff', borderColor: '#0f172a' },
   tabCount:   { fontSize: 11, padding: '2px 6px', borderRadius: 8, background: '#f1f5f9', color: '#64748b', fontWeight: 700 },
   tabCountActive: { background: 'rgba(255,255,255,0.2)', color: '#fff' },
@@ -297,7 +394,7 @@ const S: Record<string, React.CSSProperties> = {
   tr:         { borderBottom: '1px solid #f1f5f9' },
   td:         { padding: '14px 16px', fontSize: 13, color: '#0f172a', verticalAlign: 'middle', fontFamily: "'Tajawal',sans-serif" },
   pill:       { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 12, fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' },
-  smallBtn:   { display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', cursor: 'pointer' },
+  smallBtn:   { display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 8, borderWidth: '1px', borderStyle: 'solid', borderColor: '#e2e8f0', background: '#fff', color: '#64748b', cursor: 'pointer' },
   actionBtn:  { padding: '6px 12px', borderRadius: 8, border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: "'Tajawal',sans-serif", whiteSpace: 'nowrap' },
   modalOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 },
   modalBox:   { background: '#fff', borderRadius: 16, padding: '24px', width: '100%', maxWidth: 420, boxShadow: '0 20px 40px rgba(0,0,0,0.15)' },

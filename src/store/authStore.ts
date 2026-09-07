@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { BACKEND_URL } from '../config';
 
 export type Role = 'superadmin' | 'support' | 'user';
 
@@ -12,7 +13,8 @@ export interface User {
   avatar?: string | null;
 }
 
-const API = 'http://localhost:5000/api/auth';
+const API = `${BACKEND_URL}/api/auth`;
+const BACKEND = BACKEND_URL;
 
 interface AuthState {
   currentUser: Omit<User, 'password'> | null;
@@ -28,8 +30,6 @@ interface AuthState {
   getAvatarUrl:   () => string | null;
   logout:         () => void;
 }
-
-const BACKEND = 'http://localhost:5000';
 
 export const useAuthStore = create<AuthState>()(
   persist(
@@ -50,7 +50,7 @@ export const useAuthStore = create<AuthState>()(
           set({ currentUser: data.user, isAuthenticated: true });
           return { success: true, message: data.message || 'مرحباً بعودتك!' };
         } catch {
-          return { success: false, message: 'تعذّر الاتصال بالخادم. تأكد من تشغيل الباكاند على المنفذ 5000.' };
+          return { success: false, message: 'تعذّر الاتصال بالخادم. تأكد من تشغيل الباكاند على المنفذ 8000.' };
         }
       },
 

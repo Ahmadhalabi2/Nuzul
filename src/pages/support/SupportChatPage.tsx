@@ -1,504 +1,422 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
-import { useSupportChatStore } from '../../store/supportChatStore';
-import { Send, Loader2, ShieldQuestion, MessagesSquare, User, Sparkles, ArrowRight, Lock, Trash2 } from 'lucide-react';
-import { useNotifEventsStore } from '../../store/notifEvents';
+import { supportApi } from '../../services/api';
+import {
+  Send, Loader2, MessagesSquare, User,
+  Lock, Trash2, MessageCircle, CheckCheck,
+} from 'lucide-react';
+import Layout from '../../components/Layout';
+
+interface Thread  { id: number; userId: number; userName: string; unreadForSupport: number; unreadForUser: number; lastMessageAt?: string; lastMessagePreview?: string; }
+interface Message { id: number; threadId: number; senderRole: string; senderId: number; senderName: string; content: string; createdAt: string; }
+
+// ── اختصار الاسم لـ Avatar ────────────────────────────────────────────────────
+function initials(name: string) {
+  return name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase();
+}
+
+// ── وقت منسّق ────────────────────────────────────────────────────────────────
+function fmtTime(iso: string) {
+  try { return new Date(iso).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }); }
+  catch { return ''; }
+}
+
+function fmtDate(iso: string) {
+  try {
+    const d = new Date(iso);
+    const now = new Date();
+    if (d.toDateString() === now.toDateString()) return 'اليوم';
+    const diff = Math.floor((now.getTime() - d.getTime()) / 86400000);
+    if (diff === 1) return 'أمس';
+    return d.toLocaleDateString('ar-EG', { month: 'short', day: 'numeric' });
+  } catch { return ''; }
+}
 
 export default function SupportChatPage() {
-  const navigate = useNavigate();
+  const navigate   = useNavigate();
   const { currentUser, logout } = useAuthStore();
-  const {
-    fetchThreads,
-    fetchMessages,
-    ensureThreadForUser,
-    sendMessageFromUser,
-    sendMessageFromSupport,
-    markThreadReadForSupport,
-    markThreadReadForUser,
-    threads,
-    messages,
-  } = useSupportChatStore();
-
-  const { addEvent } = useNotifEventsStore();
 
   const isSupportAgent = currentUser?.role === 'support';
   const isAdminViewer  = currentUser?.role === 'superadmin';
   const isSupport      = isSupportAgent || isAdminViewer;
 
-  const [threadId, setThreadId] = useState<string>('');
-  const [text, setText]         = useState('');
-  const [sending, setSending]   = useState(false);
+  const [threads,   setThreads]   = useState<Thread[]>([]);
+  const [messages,  setMessages]  = useState<Message[]>([]);
+  const [threadId,  setThreadId]  = useState<number | null>(null);
+  const [text,      setText]      = useState('');
+  const [sending,   setSending]   = useState(false);
+  const [sideOpen,  setSideOpen]  = useState(true); // للموبايل
 
-  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const scrollRef    = useRef<HTMLDivElement>(null);
+  const textareaRef  = useRef<HTMLTextAreaElement>(null);
 
-  // ── زر الرجوع: يرجع خطوة لوراء للأدمن، ويسجل خروج للدعم ─────────────
-  const handleBack = () => {
-    if (isSupportAgent) {
-      // الدعم: تسجيل خروج والعودة لتسجيل الدخول
-      logout();
-      navigate('/login', { replace: true });
-    } else {
-      // الأدمن والمستخدم: يرجع للصفحة السابقة
-      navigate(-1);
-    }
-  };
+  // ── Fetch ──────────────────────────────────────────────────────────────────
+  const fetchThreads = useCallback(async () => {
+    try {
+      const res = await supportApi.getThreads();
+      if (res.success) {
+        setThreads(res.threads);
+        if (res.threads.length > 0 && !threadId && isSupport)
+          setThreadId(res.threads[0].id);
+      }
+    } catch {}
+  }, [isSupport, threadId]);
 
-  // ── init: جلب الثريدات + إنشاء/جلب ثريد المستخدم ─────────────────────
+  const ensureThread = useCallback(async () => {
+    try {
+      const res = await supportApi.ensureThread();
+      if (res.success) setThreadId(res.thread.id);
+    } catch {}
+  }, []);
+
+  const fetchMessages = useCallback(async (tid: number) => {
+    try {
+      const res = await supportApi.getMessages(tid);
+      if (res.success) setMessages(res.messages);
+    } catch {}
+  }, []);
+
   useEffect(() => {
     if (!currentUser) { navigate('/login'); return; }
-
-    if (isSupport) {
-      fetchThreads().then(() => {
-        const t = useSupportChatStore.getState().threads;
-        if (t.length > 0 && !threadId) setThreadId(t[0].id);
-      });
-    } else {
-      ensureThreadForUser({ userId: currentUser.id, userName: currentUser.name })
-        .then((th) => setThreadId(th.id))
-        .catch(() => {});
-    }
+    if (isSupport) fetchThreads();
+    else ensureThread();
   // eslint-disable-next-line
   }, [currentUser?.id]);
-
-  // ── polling: جلب الرسائل كل 5 ثوانٍ ──────────────────────────────────
-  const pollMessages = useCallback(() => {
-    if (threadId) fetchMessages(threadId);
-  }, [threadId, fetchMessages]);
 
   useEffect(() => {
     if (!threadId) return;
     fetchMessages(threadId);
-    const interval = setInterval(pollMessages, 5000);
-    return () => clearInterval(interval);
-  }, [threadId, pollMessages, fetchMessages]);
+    supportApi.markRead(threadId).catch(() => {});
+    const t = setInterval(() => fetchMessages(threadId), 5000);
+    return () => clearInterval(t);
+  }, [threadId, fetchMessages]);
 
-  // ── polling: جلب الثريدات كل 10 ثوانٍ (للدعم) ─────────────────────────
   useEffect(() => {
     if (!isSupport) return;
-    const interval = setInterval(() => fetchThreads(), 10000);
-    return () => clearInterval(interval);
+    const t = setInterval(fetchThreads, 10000);
+    return () => clearInterval(t);
   }, [isSupport, fetchThreads]);
 
-  const threadMessages = useMemo(() => {
-    if (!threadId) return [];
-    return messages
-      .filter((m) => m.threadId === threadId)
-      .sort((a, b) => a.createdAt - b.createdAt);
-  }, [messages, threadId]);
-
-  // ── تعليم مقروء عند فتح ثريد ────────────────────────────────────────────
   useEffect(() => {
-    if (!threadId || !currentUser) return;
-    if (isSupportAgent)       markThreadReadForSupport(threadId);
-    else if (!isAdminViewer)  markThreadReadForUser(threadId, currentUser.id);
-  }, [threadId, currentUser, isSupportAgent, isAdminViewer, threadMessages.length]);
+    scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages.length]);
 
-  useEffect(() => {
-    scrollRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [threadMessages.length]);
-
+  // ── Send ───────────────────────────────────────────────────────────────────
   const onSend = async () => {
     if (isAdminViewer || !currentUser || !threadId || !text.trim()) return;
-    const payloadText = text.trim();
+    const payload = text.trim();
+    // Optimistic
+    const tempMsg: Message = {
+      id: Date.now(), threadId: threadId!, senderRole: currentUser.role,
+      senderId: Number(currentUser.id), senderName: currentUser.name,
+      content: payload, createdAt: new Date().toISOString(),
+    };
+    setMessages(prev => [...prev, tempMsg]);
     setText('');
     setSending(true);
-
-    if (isSupportAgent) {
-      await sendMessageFromSupport({ threadId, fromUserId: currentUser.id, fromName: currentUser.name, text: payloadText });
-    } else {
-      await sendMessageFromUser({ threadId, userId: currentUser.id, userName: currentUser.name, text: payloadText });
-      addEvent({
-        type:            'booking_created',
-        bookingId:       null as any,
-        createdByUserId: currentUser.id,
-        createdByName:   currentUser.name,
-        targetRole:      'superadmin',
-        title:           'رسالة دعم جديدة',
-        desc:            payloadText.length > 140 ? payloadText.slice(0, 140) + '…' : payloadText,
-      });
+    try {
+      const res = await supportApi.sendMessage(threadId!, payload);
+      if (res.success) {
+        setMessages(prev => prev.map(m => m.id === tempMsg.id ? res.message : m));
+      }
+    } catch {
+      setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
     }
-
     setSending(false);
+    textareaRef.current?.focus();
   };
 
-  const activeThread = threads?.find((t) => t.id === threadId);
-
-  // ── حذف سجل المحادثة ────────────────────────────────────────────────────
-  const handleDeleteThread = (thId: string, userName: string) => {
-    if (!confirm(`حذف سجل محادثة "${userName}" نهائياً؟`)) return;
-    useSupportChatStore.setState((s) => ({
-      threads:  s.threads.filter((t) => t.id !== thId),
-      messages: s.messages.filter((m) => m.threadId !== thId),
-    }));
-    if (threadId === thId) setThreadId('');
+  const handleDeleteThread = async (tid: number, userName: string) => {
+    if (!window.confirm(`حذف سجل محادثة "${userName}" نهائياً؟`)) return;
+    try {
+      await supportApi.deleteThread(tid);
+      setThreads(prev => prev.filter(t => t.id !== tid));
+      if (threadId === tid) { setThreadId(null); setMessages([]); }
+    } catch {}
   };
 
-  const pageTitle = isAdminViewer
-    ? 'أرشيف محادثات الدعم'
-    : isSupportAgent
-    ? 'صندوق وارد الدعم'
-    : 'محادثة الدعم';
+  const threadMessages = useMemo(() =>
+    messages.filter(m => m.threadId === threadId),
+    [messages, threadId]
+  );
 
-  const pageSub = isAdminViewer
-    ? 'عرض فقط لسجل المحادثات بين المستخدمين وفريق الدعم — بدون إمكانية الرد أو التعديل أو الحذف'
-    : isSupportAgent
-    ? 'إدارة رسائل المستخدمين والرد على الاستفسارات'
-    : 'أرسل مشكلتك أو ملاحظاتك وسيتم الرد من فريق الدعم';
+  // ── Group messages by date ─────────────────────────────────────────────────
+  const grouped = useMemo(() => {
+    const groups: { date: string; msgs: Message[] }[] = [];
+    threadMessages.forEach(m => {
+      const d = fmtDate(m.createdAt);
+      const last = groups[groups.length - 1];
+      if (last && last.date === d) last.msgs.push(m);
+      else groups.push({ date: d, msgs: [m] });
+    });
+    return groups;
+  }, [threadMessages]);
+
+  const activeThread = threads.find(t => t.id === threadId);
 
   return (
-    <div className="support-page-container" style={S.pageContainer}>
-      <div style={S.wrap}>
-        <style>{`
-          @keyframes messageEntrance {
-            from { opacity: 0; transform: translateY(8px) scale(0.98); }
-            to { opacity: 1; transform: translateY(0) scale(1); }
-          }
-          @keyframes pulseGreen {
-            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(14, 92, 74, 0.7); }
-            70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(14, 92, 74, 0); }
-            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(14, 92, 74, 0); }
-          }
-          .msg-bubble-animate { animation: messageEntrance 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-          .pulse-indicator { animation: pulseGreen 2s infinite; }
-          .thread-tab-lux { transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
-          .thread-tab-lux:hover { background-color: #F3EEDD !important; transform: translateX(-3px); }
-          .composer-input-lux { transition: all 0.2s ease; }
-          .composer-input-lux:focus {
-            border-color: #0E5C4A !important;
-            box-shadow: 0 0 0 4px rgba(14, 92, 74, 0.12) !important;
-            background: #fff !important;
-          }
-          .btn-send-lux { transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
-          .btn-send-lux:hover { opacity: 0.95; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(10, 68, 55, 0.3); }
-          .btn-send-lux:active { transform: translateY(0); }
-          .btn-back-lux { transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
-          .btn-back-lux:hover {
-            background-color: #E1EEE7 !important;
-            color: #0A4437 !important;
-            border-color: #BFE0D2 !important;
-            transform: translateX(3px);
-          }
-          .btn-back-lux:active { transform: scale(0.95); }
+    <Layout>
+      <style>{`
+        @keyframes bubbleIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+        .bubble-in { animation: bubbleIn 0.25s ease forwards; }
+        @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+        .sp { animation: spin 1s linear infinite; }
+        .thread-item:hover { background: #f0fdf4 !important; }
+        .thread-item.active { background: #e6f7f0 !important; border-right: 3px solid #0E5C4A !important; }
+        textarea.chat-input:focus { outline: none; border-color: #0E5C4A; box-shadow: 0 0 0 3px rgba(14,92,74,0.12); }
+        .send-btn:hover:not(:disabled) { background: #0a4437 !important; }
+        .send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        @media(max-width:768px){
+          .support-shell { flex-direction: column !important; }
+          .support-sidebar { width: 100% !important; max-height: 200px !important; border-left: none !important; border-bottom: 1px solid #e5e7eb !important; }
+          .thread-list { flex-direction: row !important; overflow-x: auto !important; overflow-y: hidden !important; }
+          .thread-item { min-width: 180px !important; border-left: 1px solid #f3f4f6 !important; border-bottom: none !important; }
+        }
+      `}</style>
 
-          /* ───────────────── Responsive ───────────────── */
-          @media (max-width: 900px) {
-            .support-page-container { padding: 16px 12px !important; }
-            .support-header { gap: 10px !important; margin-bottom: 16px !important; }
-            .support-icon { width: 40px !important; height: 40px !important; }
-            .support-title { font-size: 20px !important; }
-            .support-sub { font-size: 12px !important; }
-            .support-chat-shell { flex-direction: column !important; min-height: unset !important; border-radius: 18px !important; }
-            .support-sidebar {
-              width: 100% !important;
-              border-left: none !important;
-              border-bottom: 1px solid #E5DFC8 !important;
-              max-height: 210px !important;
-            }
-            .support-thread-list { flex-direction: row !important; overflow-x: auto !important; overflow-y: hidden !important; }
-            .support-thread-tab {
-              min-width: 210px !important;
-              flex-shrink: 0 !important;
-              border-bottom: none !important;
-              border-right: none !important;
-              border-left: 1px solid #F3EEDD !important;
-            }
-            .support-chat-body { height: auto !important; min-height: 300px !important; flex: 1 1 auto !important; padding: 16px 14px !important; }
-            .support-composer { flex-wrap: wrap !important; padding: 12px !important; gap: 8px !important; }
-            .support-composer-input { min-width: 0 !important; flex-basis: 100% !important; }
-            .support-send-btn { flex: 1 !important; padding: 12px 16px !important; }
-            .support-back-btn { width: 38px !important; height: 38px !important; }
-          }
-          @media (max-width: 520px) {
-            .support-header { flex-direction: column !important; align-items: flex-start !important; }
-            .support-header-badges { align-self: flex-start !important; }
-            .support-active-user-bar { font-size: 12px !important; padding: 10px 14px !important; }
-          }
-        `}</style>
+      <div style={{ direction: 'rtl', height: 'calc(100vh - 120px)', display: 'flex', flexDirection: 'column', fontFamily: "'Tajawal',sans-serif" }}>
 
-        <div className="support-header" style={S.header}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <button
-              onClick={handleBack}
-              className="btn-back-lux support-back-btn"
-              style={S.backBtn}
-              title={isAdminViewer ? "الرجوع للصفحة السابقة" : "تسجيل الخروج والرجوع لصفحة الدخول"}
-            >
-              <ArrowRight size={20} />
-            </button>
-
-            <div className="support-icon" style={S.icon}>
-              {isAdminViewer ? <Lock size={22} /> : isSupportAgent ? <ShieldQuestion size={22} /> : <MessagesSquare size={22} />}
+        {/* ── Header ── */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 42, height: 42, borderRadius: 12, background: 'linear-gradient(135deg,#0E5C4A,#1a8a6b)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {isAdminViewer ? <Lock size={20} color="#fff" /> : <MessagesSquare size={20} color="#fff" />}
             </div>
             <div>
-              <h1 className="support-title" style={S.title}>{pageTitle}</h1>
-              <p className="support-sub" style={S.sub}>{pageSub}</p>
+              <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: '#111827', fontFamily: "'Amiri',serif" }}>
+                {isAdminViewer ? 'أرشيف الدعم' : isSupportAgent ? 'صندوق الدعم' : 'الدعم الفني'}
+              </h1>
+              <p style={{ margin: 0, fontSize: 12, color: '#6b7280' }}>
+                {isAdminViewer ? 'عرض فقط' : isSupportAgent ? `${threads.length} محادثة` : 'نرد عليك بأسرع وقت'}
+              </p>
             </div>
           </div>
-          <div className="support-header-badges">
-            {!isSupport && (
-              <div style={S.agentBadge}>
-                <div className="pulse-indicator" style={S.onlineDot} />
-                <span>فريق الدعم متصل حالياً</span>
-              </div>
-            )}
-            {isAdminViewer && (
-              <div style={S.readOnlyBadge}>
-                <Lock size={13} />
-                <span>وضع القراءة فقط</span>
-              </div>
-            )}
-          </div>
+          {isAdminViewer && (
+            <span style={{ display: 'flex', alignItems: 'center', gap: 5, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 20, padding: '5px 12px', fontSize: 12, color: '#dc2626', fontWeight: 600 }}>
+              <Lock size={12} /> قراءة فقط
+            </span>
+          )}
+          {!isSupport && (
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 20, padding: '5px 12px', fontSize: 12, color: '#15803d', fontWeight: 600 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />
+              متصل
+            </span>
+          )}
         </div>
 
-        <div className="support-chat-shell" style={S.chatShell}>
+        {/* ── Shell ── */}
+        <div className="support-shell" style={{ flex: 1, display: 'flex', gap: 0, border: '1px solid #e5e7eb', borderRadius: 20, overflow: 'hidden', background: '#fff', minHeight: 0 }}>
+
+          {/* ── Sidebar ── */}
           {isSupport && (
-            <div className="support-sidebar" style={S.sidebar}>
-              <div style={S.sidebarHeader}>
-                <span>{isAdminViewer ? 'كل المحادثات (أرشيف)' : 'المحادثات النشطة'}</span>
-                <span style={S.sidebarBadge}>{threads?.length || 0}</span>
+            <div className="support-sidebar" style={{ width: 280, borderLeft: '1px solid #e5e7eb', background: '#f9fafb', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+              {/* Sidebar header */}
+              <div style={{ padding: '14px 16px', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#374151' }}>
+                  {isAdminViewer ? 'كل المحادثات' : 'المحادثات'}
+                </span>
+                <span style={{ background: '#e5e7eb', color: '#6b7280', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20 }}>
+                  {threads.length}
+                </span>
               </div>
-              <div className="support-thread-list" style={S.threadList}>
-                {threads && threads.length === 0 ? (
-                  <p style={{ padding: 24, fontSize: 13, color: '#93A29B', textAlign: 'center', fontWeight: 600 }}>لا توجد محادثات نشطة</p>
-                ) : (
-                  threads?.map((th) => {
-                    const isSelected = th.id === threadId;
 
-                    const unreadCount = messages.filter(
-                      (m) => m.threadId === th.id && m.unreadForSupport
-                    ).length;
-
-                    const hasUnread = unreadCount > 0;
-
-                    return (
-                      <button
-                        key={th.id}
-                        onClick={() => setThreadId(th.id)}
-                        className="thread-tab-lux support-thread-tab"
-                        style={{
-                          ...S.threadTab,
-                          background: isSelected ? 'linear-gradient(135deg, #E1EEE7 0%, #F6EBCB 100%)' : 'transparent',
-                          color: isSelected ? '#0A4437' : '#374151',
-                          borderRight: isSelected ? '4px solid #0A4437' : '4px solid transparent',
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, overflow: 'hidden' }}>
-                          <div style={S.avatarWrapper}>
-                            <User size={16} color={isSelected ? '#0A4437' : '#52655F'} />
-                            <div className="pulse-indicator" style={S.onlineIndicator} />
-                          </div>
-                          <div style={{ textAlign: 'right', overflow: 'hidden' }}>
-                            <span style={{ fontWeight: isSelected || hasUnread ? 800 : 600, display: 'block', fontSize: 13, color: isSelected ? '#0A4437' : '#1C2B27', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                              {th.userName}
+              {/* Thread list */}
+              <div className="thread-list" style={{ flex: 1, overflowY: 'auto' }}>
+                {threads.length === 0 ? (
+                  <div style={{ padding: '40px 16px', textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>
+                    <MessageCircle size={28} style={{ margin: '0 auto 8px', display: 'block', opacity: 0.4 }} />
+                    لا توجد محادثات
+                  </div>
+                ) : threads.map(th => {
+                  const sel = th.id === threadId;
+                  const unread = th.unreadForSupport > 0;
+                  return (
+                    <div
+                      key={th.id}
+                      className={`thread-item${sel ? ' active' : ''}`}
+                      onClick={() => setThreadId(th.id)}
+                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', cursor: 'pointer', borderBottom: '1px solid #f3f4f6', borderRight: sel ? '3px solid #0E5C4A' : '3px solid transparent', transition: 'all 0.15s' }}
+                    >
+                      {/* Avatar */}
+                      <div style={{ width: 38, height: 38, borderRadius: '50%', background: sel ? '#0E5C4A' : '#e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 13, fontWeight: 700, color: sel ? '#fff' : '#6b7280' }}>
+                        {initials(th.userName)}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+                          <span style={{ fontSize: 13, fontWeight: unread ? 700 : 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {th.userName}
+                          </span>
+                          {unread && !isAdminViewer && (
+                            <span style={{ background: '#0E5C4A', color: '#fff', fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 20, flexShrink: 0 }}>
+                              {th.unreadForSupport}
                             </span>
-                            {th.lastMessagePreview && (
-                              <span style={{ fontSize: 11, color: isSelected ? '#0A4437' : '#52655F', fontWeight: hasUnread ? 700 : 500, display: 'block', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>
-                                {th.lastMessagePreview}
-                              </span>
-                            )}
-                          </div>
+                          )}
                         </div>
-                        {!isAdminViewer && hasUnread && (
-                          <span style={S.unreadBadge}>{unreadCount}</span>
+                        {th.lastMessagePreview && (
+                          <p style={{ margin: 0, fontSize: 11, color: '#9ca3af', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {th.lastMessagePreview}
+                          </p>
                         )}
-                        {isSupportAgent && (
-                          <button
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#BD5B3E', padding: 4, opacity: 0.6, flexShrink: 0 }}
-                            onClick={(e) => { e.stopPropagation(); handleDeleteThread(th.id, th.userName); }}
-                            title="حذف السجل"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        )}
-                      </button>
-                    );
-                  })
-                )}
+                      </div>
+                      {isSupportAgent && (
+                        <button
+                          onClick={e => { e.stopPropagation(); handleDeleteThread(th.id, th.userName); }}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#d1d5db', padding: 4, borderRadius: 6, flexShrink: 0, lineHeight: 0 }}
+                          title="حذف"
+                          onMouseEnter={e => (e.currentTarget.style.color = '#ef4444')}
+                          onMouseLeave={e => (e.currentTarget.style.color = '#d1d5db')}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
 
-          <div className="support-main-chat" style={S.mainChatArea}>
-            {isSupport && activeThread ? (
-              <div className="support-active-user-bar" style={S.activeUserBar}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <div style={S.miniUserIcon}><User size={14} color="#0A4437" /></div>
-                  <span>
-                    {isAdminViewer ? 'أرشيف محادثة: ' : 'محادثة نشطة مع: '}
-                    <strong style={{ color: '#0A4437', fontWeight: 800 }}>{activeThread.userName}</strong>
-                  </span>
-                </div>
-              </div>
-            ) : null}
+          {/* ── Chat Area ── */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
 
-            <div className="support-chat-body" style={S.chatBody}>
-              {threadMessages.length === 0 ? (
-                <div style={S.empty}>
-                  <div style={S.sparkleCircle}>
-                    <Sparkles size={24} color="#0E5C4A" />
-                  </div>
-                  <p style={S.emptyTitle}>لا توجد رسائل بعد</p>
-                  <p style={S.emptySub}>
-                    {isAdminViewer
-                      ? 'اختر محادثة من القائمة لعرض أرشيفها.'
-                      : isSupportAgent
-                      ? 'اختر مستخدماً من القائمة للبدء بمراسلته.'
-                      : 'أهلاً بك! ابدأ بإرسال أول استفسار وسنرد عليك بأسرع وقت.'}
+            {/* Chat header */}
+            {(isSupport && activeThread) ? (
+              <div style={{ padding: '12px 20px', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', gap: 10, background: '#fff', flexShrink: 0 }}>
+                <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#0E5C4A', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 13, fontWeight: 700 }}>
+                  {initials(activeThread.userName)}
+                </div>
+                <div>
+                  <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#111827' }}>{activeThread.userName}</p>
+                  <p style={{ margin: 0, fontSize: 11, color: '#9ca3af' }}>
+                    {isAdminViewer ? 'أرشيف المحادثة' : 'نشط'}
                   </p>
                 </div>
-              ) : (
-                <div style={S.bubbleList}>
-                  {threadMessages.map((m) => {
-                    const mine = isSupport ? m.fromRole !== 'user' : m.fromRole === 'user';
-                    const fromUser = m.fromRole === 'user';
+              </div>
+            ) : !isSupport && (
+              <div style={{ padding: '12px 20px', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', gap: 10, background: '#fff', flexShrink: 0 }}>
+                <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg,#0E5C4A,#1a8a6b)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <User size={18} color="#fff" />
+                </div>
+                <div>
+                  <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#111827' }}>فريق الدعم</p>
+                  <p style={{ margin: 0, fontSize: 11, color: '#22c55e', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ width: 6, height: 6, background: '#22c55e', borderRadius: '50%', display: 'inline-block' }} />
+                    متصل الآن
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Messages */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '20px', background: '#f9fafb', display: 'flex', flexDirection: 'column', gap: 0 }}>
+              {threadMessages.length === 0 ? (
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, color: '#9ca3af', padding: 40 }}>
+                  <MessageCircle size={40} style={{ opacity: 0.3 }} />
+                  <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: '#6b7280' }}>
+                    {isAdminViewer ? 'اختر محادثة من القائمة'
+                    : isSupportAgent ? 'اختر مستخدماً للبدء'
+                    : 'ابدأ المحادثة! سنرد عليك فوراً.'}
+                  </p>
+                  {!isSupport && <p style={{ margin: 0, fontSize: 12, color: '#d1d5db' }}>اكتب رسالتك في الأسفل</p>}
+                </div>
+              ) : grouped.map(({ date, msgs }) => (
+                <div key={date}>
+                  {/* Date divider */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '16px 0 12px', color: '#9ca3af' }}>
+                    <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
+                    <span style={{ fontSize: 11, fontWeight: 600, background: '#f3f4f6', padding: '3px 10px', borderRadius: 20 }}>{date}</span>
+                    <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
+                  </div>
+
+                  {msgs.map((m, i) => {
+                    const mine     = isSupport ? m.senderRole !== 'user' : m.senderRole === 'user';
+                    const prevSame = i > 0 && msgs[i-1].senderRole === m.senderRole;
+                    const nextSame = i < msgs.length - 1 && msgs[i+1].senderRole === m.senderRole;
 
                     return (
-                      <div
-                        key={m.id}
-                        className="msg-bubble-animate"
-                        style={{
-                          display: 'flex',
-                          justifyContent: mine ? 'flex-end' : 'flex-start',
-                          marginBottom: 14,
-                        }}
-                      >
-                        <div
-                          style={{
-                            maxWidth: '72%',
-                            padding: '12px 16px',
-                            borderRadius: mine ? '18px 18px 0px 18px' : '18px 18px 18px 0px',
-                            background: mine ? 'linear-gradient(135deg, #0E5C4A 0%, #0A4437 100%)' : '#ffffff',
-                            color: mine ? '#fff' : '#1C2B27',
-                            boxShadow: mine ? '0 4px 12px rgba(10, 68, 55, 0.18)' : '0 4px 12px rgba(28,43,39,0.04)',
-                            border: mine ? 'none' : '1px solid #E5DFC8',
-                          }}
-                        >
-                          {((isSupport && fromUser) || (!isSupport && !fromUser)) && (
-                            <p style={{ ...S.meta, color: mine ? 'rgba(255,255,255,0.9)' : '#C69A3A' }}>{m.fromName}</p>
+                      <div key={m.id} className="bubble-in" style={{ display: 'flex', justifyContent: mine ? 'flex-start' : 'flex-end', marginBottom: nextSame ? 2 : 10, alignItems: 'flex-end', gap: 8 }}>
+                        {/* Avatar للطرف الآخر */}
+                        {!mine && !nextSame ? (
+                          <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#6b7280', flexShrink: 0 }}>
+                            {initials(m.senderName)}
+                          </div>
+                        ) : !mine && <div style={{ width: 28, flexShrink: 0 }} />}
+
+                        <div style={{ maxWidth: '68%' }}>
+                          {/* اسم المرسل */}
+                          {!mine && !prevSame && (
+                            <p style={{ margin: '0 0 4px 4px', fontSize: 11, fontWeight: 600, color: '#6b7280' }}>{m.senderName}</p>
                           )}
-                          <p style={{ margin: 0, whiteSpace: 'pre-wrap', lineHeight: 1.6, fontSize: 13.5, fontWeight: 500 }}>
-                            {m.text}
-                          </p>
-                          <p style={{
-                            ...S.time,
-                            color: mine ? 'rgba(255,255,255,0.7)' : '#93A29B'
+                          {/* الفقاعة */}
+                          <div style={{
+                            padding: '10px 14px',
+                            borderRadius: mine
+                              ? `16px 16px ${nextSame ? '16px' : '4px'} 16px`
+                              : `16px 16px 16px ${nextSame ? '16px' : '4px'}`,
+                            background: mine ? 'linear-gradient(135deg,#0E5C4A,#0a4437)' : '#fff',
+                            color: mine ? '#fff' : '#111827',
+                            border: mine ? 'none' : '1px solid #e5e7eb',
+                            boxShadow: mine ? '0 2px 8px rgba(14,92,74,0.2)' : '0 1px 3px rgba(0,0,0,0.06)',
+                            wordBreak: 'break-word',
                           }}>
-                            {new Date(m.createdAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
-                          </p>
+                            <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{m.content}</p>
+                          </div>
+                          {/* الوقت */}
+                          {!nextSame && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 3, justifyContent: mine ? 'flex-start' : 'flex-end' }}>
+                              <span style={{ fontSize: 10, color: '#9ca3af' }}>{fmtTime(m.createdAt)}</span>
+                              {mine && <CheckCheck size={12} color="#9ca3af" />}
+                            </div>
+                          )}
                         </div>
+
+                        {/* Avatar لـ mine */}
+                        {mine && !nextSame ? (
+                          <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg,#0E5C4A,#1a8a6b)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
+                            {initials(currentUser?.name ?? 'أنت')}
+                          </div>
+                        ) : mine && <div style={{ width: 28, flexShrink: 0 }} />}
                       </div>
                     );
                   })}
-                  <div ref={scrollRef} />
                 </div>
-              )}
+              ))}
+              <div ref={scrollRef} />
             </div>
 
-            {threadId && !isAdminViewer && (
-              <div className="support-composer" style={S.composer}>
-                <input
+            {/* ── Composer ── */}
+            {threadId && !isAdminViewer ? (
+              <div style={{ padding: '12px 16px', borderTop: '1px solid #e5e7eb', background: '#fff', display: 'flex', gap: 10, alignItems: 'flex-end', flexShrink: 0 }}>
+                <textarea
+                  ref={textareaRef}
+                  className="chat-input"
                   value={text}
-                  onChange={(e) => setText(e.target.value)}
-                  placeholder={isSupportAgent ? 'اكتب رد الدعم وسوف يصل للعميل فوراً…' : 'اكتب رسالتك هنا وسيقوم الفريق بمساعدتك…'}
-                  className="composer-input-lux support-composer-input"
-                  style={S.input}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      onSend();
-                    }
-                  }}
+                  onChange={e => { setText(e.target.value); e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'; }}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSend(); } }}
+                  placeholder={isSupportAgent ? 'اكتب رداً...' : 'اكتب رسالتك...'}
+                  rows={1}
+                  style={{ flex: 1, resize: 'none', border: '1.5px solid #e5e7eb', borderRadius: 14, padding: '10px 14px', fontSize: 13.5, fontFamily: "'Tajawal',sans-serif", background: '#f9fafb', color: '#111827', lineHeight: 1.5, maxHeight: 120, overflow: 'auto', transition: 'border-color 0.2s, box-shadow 0.2s', outline: 'none' }}
                 />
-                <button className="btn-send-lux support-send-btn" style={S.sendBtn} onClick={onSend} disabled={sending}>
-                  {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={15} style={{ transform: 'rotate(180deg)' }} />}
-                  <span style={{ marginInlineStart: 6 }}>إرسال</span>
+                <button
+                  className="send-btn"
+                  onClick={onSend}
+                  disabled={sending || !text.trim()}
+                  style={{ width: 44, height: 44, borderRadius: '50%', border: 'none', background: 'linear-gradient(135deg,#0E5C4A,#1a8a6b)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'background 0.2s' }}
+                >
+                  {sending
+                    ? <Loader2 size={16} className="sp" />
+                    : <Send size={16} style={{ transform: 'rotate(180deg)' }} />}
                 </button>
               </div>
-            )}
-
-            {threadId && isAdminViewer && (
-              <div style={S.archiveNotice}>
-                <Lock size={14} />
-                <span>هذه محادثة مؤرشفة — لا يمكن للأدمن الرد أو التعديل أو الحذف، العرض فقط.</span>
+            ) : isAdminViewer && threadId ? (
+              <div style={{ padding: '12px 20px', borderTop: '1px solid #e5e7eb', background: '#fef2f2', display: 'flex', alignItems: 'center', gap: 8, color: '#dc2626', fontSize: 12.5, fontWeight: 600, flexShrink: 0 }}>
+                <Lock size={13} /> وضع العرض فقط — لا يمكن الرد
               </div>
-            )}
+            ) : null}
           </div>
         </div>
       </div>
-    </div>
+    </Layout>
   );
 }
-
-const S: Record<string, React.CSSProperties> = {
-  pageContainer: { flex: 1, padding: '32px 28px', maxWidth: 1200, width: '100%', margin: '0 auto', boxSizing: 'border-box' },
-  wrap: { direction: 'rtl', fontFamily: "'Tajawal', 'Cairo', system-ui, sans-serif" },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 12 },
-
-  backBtn: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    border: '1px solid #E5DFC8',
-    background: '#FAF6EC',
-    color: '#52655F',
-    cursor: 'pointer',
-    outline: 'none',
-    boxShadow: '0 4px 6px rgba(28, 43, 39, 0.03)',
-    flexShrink: 0,
-  },
-
-  icon: { width: 46, height: 46, borderRadius: 16, background: 'linear-gradient(135deg, #E1EEE7 0%, #F6EBCB 100%)', color: '#0A4437', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #C9A227', boxShadow: '0 4px 6px rgba(10, 68, 55, 0.06)', flexShrink: 0 },
-  title: { margin: 0, fontSize: 26, fontWeight: 700, color: '#1C2B27', letterSpacing: '-0.3px', fontFamily: "'Amiri', serif" },
-  sub: { margin: '4px 0 0', fontSize: 13, color: '#52655F', fontWeight: 500 },
-
-  agentBadge: { display: 'flex', alignItems: 'center', gap: 8, background: '#E1EEE7', border: '1px solid #BFE0D2', borderRadius: 20, padding: '6px 12px', fontSize: 12, color: '#0A4437', fontWeight: 700 },
-  onlineDot: { width: 8, height: 8, borderRadius: '50%', background: '#0E5C4A' },
-  readOnlyBadge: { display: 'flex', alignItems: 'center', gap: 6, background: '#FBEEEA', border: '1px solid #E9C9BD', borderRadius: 20, padding: '6px 12px', fontSize: 12, color: '#BD5B3E', fontWeight: 700 },
-
-  chatShell: { display: 'flex', background: '#fff', border: '1px solid #E5DFC8', borderRadius: 24, overflow: 'hidden', boxShadow: '0 10px 30px rgba(28, 43, 39, 0.05)', minHeight: 560 },
-
-  sidebar: { width: '310px', borderLeft: '1px solid #E5DFC8', background: '#FAF6EC', display: 'flex', flexDirection: 'column', flexShrink: 0 },
-  sidebarHeader: { padding: '18px 20px', fontWeight: 800, fontSize: 14, borderBottom: '1px solid #E5DFC8', color: '#1C2B27', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  sidebarBadge: { background: '#E5DFC8', color: '#52655F', fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 8 },
-
-  threadList: { flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' },
-  threadTab: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', border: 'none', borderBottom: '1px solid #F3EEDD', cursor: 'pointer', textAlign: 'right', outline: 'none' },
-  avatarWrapper: { position: 'relative', width: 34, height: 34, borderRadius: '50%', background: '#E5DFC8', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  onlineIndicator: { position: 'absolute', bottom: -1, right: -1, width: 8, height: 8, borderRadius: '50%', background: '#0E5C4A', border: '2px solid #FAF6EC' },
-  unreadBadge: { background: '#BD5B3E', color: '#fff', fontSize: 10, fontWeight: 900, padding: '2px 7px', borderRadius: '50%', flexShrink: 0, boxShadow: '0 2px 6px rgba(189, 91, 62, 0.3)' },
-
-  mainChatArea: { flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, background: '#FDFBF5' },
-  activeUserBar: { padding: '14px 20px', background: '#ffffff', borderBottom: '1px solid #F3EEDD', fontSize: 13, color: '#374151', boxShadow: '0 1px 2px rgba(28,43,39,0.02)' },
-  miniUserIcon: { width: 24, height: 24, borderRadius: 8, background: '#E1EEE7', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-
-  chatBody: { flex: 1, height: 420, overflowY: 'auto', padding: '24px 20px', background: '#FAF6EC' },
-  bubbleList: { display: 'flex', flexDirection: 'column' },
-
-  empty: { padding: '80px 16px', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center' },
-  sparkleCircle: { width: 56, height: 56, borderRadius: '50%', background: '#E1EEE7', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
-  emptyTitle: { margin: 0, fontWeight: 800, fontSize: 16, color: '#1C2B27', fontFamily: "'Tajawal', sans-serif" },
-  emptySub: { margin: 0, fontSize: 13, color: '#52655F', fontWeight: 500, maxWidth: 280, lineHeight: 1.6 },
-
-  composer: { display: 'flex', gap: 12, padding: 18, borderTop: '1px solid #E5DFC8', alignItems: 'center', background: '#fff' },
-  input: { flex: 1, borderRadius: 14, border: '1.5px solid #E5DFC8', padding: '13px 16px', outline: 'none', fontSize: 13.5, background: '#FAF6EC', color: '#1C2B27', fontFamily: "'Tajawal', sans-serif" },
-  sendBtn: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '13px 20px', borderRadius: 14, border: 'none', cursor: 'pointer', fontWeight: 800, fontSize: 13.5, color: '#fff', background: 'linear-gradient(135deg, #0E5C4A 0%, #0A4437 100%)', fontFamily: "'Tajawal', sans-serif" },
-
-  archiveNotice: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    padding: '16px 18px',
-    borderTop: '1px solid #E5DFC8',
-    background: '#FBEEEA',
-    color: '#BD5B3E',
-    fontSize: 12.5,
-    fontWeight: 700,
-  },
-
-  meta: { margin: '0 0 4px', fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.2px' },
-  time: { margin: '4px 0 0', fontSize: 9.5, fontWeight: 700, textAlign: 'left' },
-};

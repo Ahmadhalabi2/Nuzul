@@ -48,7 +48,7 @@ export default function LoginPage() {
       const to =
         role === 'superadmin' ? '/dashboard'
         : role === 'support'  ? '/support'
-        : '/SupportChatPage';
+        : '/home';
       navigate(to, { replace: true });
     } else {
       setError(result.message);

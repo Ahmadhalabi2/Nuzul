@@ -8,8 +8,8 @@
 import { useState } from 'react';
 import { X, Star, Send, CheckCircle } from 'lucide-react';
 import { useRatingsStore } from '../store/ratingsStore';
-import { useNotifEventsStore } from '../store/notifEvents';
 import { useAuthStore } from '../store/authStore';
+import { ratingsApi } from '../services/api';
 import type { Booking } from '../store/bookingsStore';
 
 interface Props {
@@ -19,10 +19,9 @@ interface Props {
 
 export default function RatingModal({ booking, onClose }: Props) {
   const { addRating, hasRated, getRatingForBooking } = useRatingsStore();
-  const { addEvent }    = useNotifEventsStore();
   const { currentUser } = useAuthStore();
 
-  const existing = getRatingForBooking(booking.id);
+  const existing     = getRatingForBooking(booking.id);
   const alreadyRated = hasRated(booking.id);
 
   const [stars,   setStars]   = useState(existing?.stars   ?? 0);
@@ -30,6 +29,7 @@ export default function RatingModal({ booking, onClose }: Props) {
   const [comment, setComment] = useState(existing?.comment ?? '');
   const [done,    setDone]    = useState(alreadyRated);
   const [saving,  setSaving]  = useState(false);
+  const [error,   setError]   = useState('');
 
   const STAR_LABELS = ['', 'سيء', 'مقبول', 'جيد', 'رائع', 'ممتاز'];
 
@@ -37,30 +37,31 @@ export default function RatingModal({ booking, onClose }: Props) {
     e.preventDefault();
     if (stars === 0 || !currentUser) return;
     setSaving(true);
-
-    addRating({
-      bookingId:  booking.id,
-      userId:     currentUser.id,
-      userName:   currentUser.name,
-      hotelId:    booking.hotelId,
-      hotelName:  booking.hotelName,
-      stars,
-      comment:    comment.trim(),
-    });
-
-    // إشعار للأدمن
-    addEvent({
-      type:            'booking_rated',
-      bookingId:       booking.id,
-      createdByUserId: currentUser.id,
-      createdByName:   currentUser.name,
-      targetRole:      'superadmin',
-      title:           'تقييم جديد للفندق',
-      desc:            `${currentUser.name} أعطى ${booking.hotelName} تقييم ${stars}/5. ${comment.trim() ? `"${comment.trim().slice(0, 60)}"` : ''}`,
-    });
-
-    setSaving(false);
-    setDone(true);
+    setError('');
+    try {
+      // إرسال للباك اند
+      const res = await ratingsApi.create({
+        booking_id: Number(booking.id),
+        stars,
+        comment: comment.trim() || undefined,
+      });
+      if (!res.success) { setError(res.message ?? 'حدث خطأ.'); return; }
+      // حفظ محلي للتوافق
+      addRating({
+        bookingId: booking.id,
+        userId:    currentUser.id,
+        userName:  currentUser.name,
+        hotelId:   booking.hotelId,
+        hotelName: booking.hotelName,
+        stars,
+        comment: comment.trim(),
+      });
+      setDone(true);
+    } catch {
+      setError('تعذّر الاتصال بالخادم.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -161,6 +162,7 @@ export default function RatingModal({ booking, onClose }: Props) {
                 <Send size={15} />
                 {saving ? 'جارٍ الإرسال…' : 'إرسال التقييم'}
               </button>
+              {error && <p style={{ color: '#ef4444', fontSize: 12, textAlign: 'center', margin: '6px 0 0', fontFamily: "'Tajawal',sans-serif" }}>{error}</p>}
             </form>
           )}
         </div>

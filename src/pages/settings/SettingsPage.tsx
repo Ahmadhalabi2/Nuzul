@@ -231,9 +231,93 @@ export default function SettingsPage() {
               </p>
             </div>
           )}
+
+          {/* ── تصفير البيانات — للأدمن والدعم فقط ── */}
+          {(currentUser?.role === 'superadmin' || currentUser?.role === 'support') && (
+            <ResetDataSection role={currentUser.role} />
+          )}
         </div>
       </div>
     </Layout>
+  );
+}
+
+// ── مكوّن تصفير البيانات ─────────────────────────────────────────────────────
+function ResetDataSection({ role }: { role: string }) {
+  const { logout } = useAuthStore();
+  const [loading,  setLoading]  = useState(false);
+  const [confirm1, setConfirm1] = useState(false);
+  const [msg,      setMsg]      = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+
+  const handleReset = async () => {
+    if (!confirm1) { setConfirm1(true); return; }
+    setLoading(true);
+    setMsg(null);
+    try {
+      const token = localStorage.getItem('nuzul_token') ?? '';
+      const res   = await fetch(`${BACKEND_URL}/api/reset`, {
+        method:  'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      });
+      const data = await res.json();
+      if (data.success) {
+        // الـ reset حذف الـ tokens — نعيد تسجيل الدخول تلقائياً لنحصل على token جديد
+        logout();
+        setMsg({ type: 'ok', text: 'تم التصفير. يتم إعادة تسجيل الدخول...' });
+        // لا نعرف كلمة المرور هنا — نوجّه لصفحة الدخول
+        setTimeout(() => { window.location.href = '/login'; }, 1500);
+      } else {
+        setMsg({ type: 'err', text: data.message });
+      }
+      setConfirm1(false);
+    } catch {
+      setMsg({ type: 'err', text: 'تعذّر الاتصال بالخادم.' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{ ...S.card, borderColor: '#fecaca', marginTop: 12 }}>
+      <p style={{ ...S.cardTitle, color: '#dc2626' }}>⚠️ منطقة الخطر</p>
+      <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 16, fontFamily: "'Tajawal',sans-serif" }}>
+        تصفير جميع بيانات التطبيق (حجوزات، مستخدمين، إشعارات، دعم، تقييمات) مع الحفاظ على حسابات الأدمن وموظفي الدعم.
+        {role !== 'superadmin' && ' (سيتم تنفيذ الأمر بصلاحية الأدمن)'}
+      </p>
+      {msg && <Msg type={msg.type} text={msg.text} />}
+      {confirm1 && (
+        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: '12px 16px', marginBottom: 12, fontSize: 13, color: '#dc2626', fontFamily: "'Tajawal',sans-serif" }}>
+          ⚠️ هل أنت متأكد؟ هذا الإجراء لا يمكن التراجع عنه. اضغط مرة أخرى للتأكيد.
+        </div>
+      )}
+      <button
+        onClick={handleReset}
+        disabled={loading}
+        style={{
+          padding: '10px 20px',
+          background: confirm1 ? '#dc2626' : '#fef2f2',
+          color:      confirm1 ? '#fff'    : '#dc2626',
+          border:     '1px solid #fecaca',
+          borderRadius: 10,
+          fontSize: 13,
+          fontWeight: 700,
+          cursor: loading ? 'not-allowed' : 'pointer',
+          fontFamily: "'Tajawal',sans-serif",
+          opacity: loading ? 0.7 : 1,
+          transition: 'all 0.2s',
+        }}
+      >
+        {loading ? 'جاري التصفير...' : confirm1 ? 'نعم، صفّر البيانات نهائياً' : '🗑️ تصفير جميع البيانات'}
+      </button>
+      {confirm1 && (
+        <button
+          onClick={() => setConfirm1(false)}
+          style={{ marginRight: 10, padding: '10px 16px', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 10, fontSize: 13, cursor: 'pointer', fontFamily: "'Tajawal',sans-serif", color: '#475569' }}
+        >
+          إلغاء
+        </button>
+      )}
+    </div>
   );
 }
 
