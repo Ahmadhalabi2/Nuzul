@@ -78,13 +78,15 @@ export default function App() {
         {/* Public */}
         <Route path="/" element={isAuthenticated ? <Navigate to={getDefaultRoute()} replace /> : <StartPage />} />
         <Route path="/login"  element={isAuthenticated ? <Navigate to={getDefaultRoute()} replace /> : <LoginPage />} />
-        <Route path="/signup" element={isAuthenticated ? <Navigate to={getDefaultRoute()} replace /> : <SignupPage />} />
+        <Route path="/signup" element={isAuthenticated
+          ? <Navigate to={getDefaultRoute()} replace />
+          : <SignupPage />} />
 
-        {/* Onboarding — بعد التسجيل مباشرة */}
+        {/* Onboarding — بعد التسجيل مباشرة، لا يعيد التوجيه حتى لو مسجّل */}
         <Route path="/onboarding" element={
-          <ProtectedRoute>
-            <OnboardingPage />
-          </ProtectedRoute>
+          isAuthenticated
+            ? <OnboardingPage />
+            : <Navigate to="/login" replace />
         } />
 
         {/* Admin Home */}
@@ -166,3 +168,4 @@ export default function App() {
     </BrowserRouter>
   );
 }
+
