@@ -184,9 +184,9 @@ export default function SignupPage() {
       if (!data.success) { setError(data.message); return; }
       if (data.token) localStorage.setItem('nuzul_token', data.token);
       loginWithToken(data.user);
-      navigate('/home', { replace: true });
+      navigate('/onboarding', { replace: true });
     } catch {
-      setError('تعذّر الاتصال بالخادم. تأكد من تشغيل الباكاند على المنفذ 5000.');
+      setError('تعذّر الاتصال بالخادم. تحقق من اتصالك بالإنترنت وحاول مجدداً.');
     } finally {
       setLoading(false);
     }
@@ -229,7 +229,7 @@ export default function SignupPage() {
       if (!data.success) { setError(data.message); return; }
       if (data.token) localStorage.setItem('nuzul_token', data.token);
       loginWithToken(data.user);
-      navigate('/home', { replace: true });
+      navigate('/onboarding', { replace: true });
     } catch {
       setError('تعذّر الاتصال بالخادم.');
     } finally {

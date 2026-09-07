@@ -8,6 +8,7 @@ use App\Http\Controllers\API\NotificationController;
 use App\Http\Controllers\API\SupportController;
 use App\Http\Controllers\API\UploadController;
 use App\Http\Controllers\API\RatingController;
+use App\Http\Controllers\API\OnboardingController;
 use App\Http\Controllers\API\ResetController;
 use App\Http\Controllers\API\ChatbotController;
 
@@ -38,6 +39,10 @@ Route::get('/bookings/recent',   [BookingController::class, 'recent']);
 
 // ── Protected routes ──────────────────────────────────────────────────────────
 Route::middleware('auth:sanctum')->group(function () {
+
+    // ── Onboarding ────────────────────────────────────────────────────────
+    Route::post('/onboarding/complete', [OnboardingController::class, 'complete']);
+    Route::get('/onboarding/status',    [OnboardingController::class, 'status']);
 
     // Auth
     Route::prefix('auth')->group(function () {

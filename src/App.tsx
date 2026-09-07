@@ -19,6 +19,7 @@ import MyBookingsPage     from './pages/my-bookings/MyBookingsPage';
 import BookHotelPage      from './pages/book-hotel/BookHotelPage';
 import StartPage          from './pages/StartPage';
 import SupportChatPage    from './pages/support/SupportChatPage';
+import OnboardingPage     from './pages/onboarding/OnboardingPage';
 import Layout             from './components/Layout';
 import { HotelBookingFlowStyles, PALETTE } from './components/HotelBookingFlow';
 
@@ -78,6 +79,13 @@ export default function App() {
         <Route path="/" element={isAuthenticated ? <Navigate to={getDefaultRoute()} replace /> : <StartPage />} />
         <Route path="/login"  element={isAuthenticated ? <Navigate to={getDefaultRoute()} replace /> : <LoginPage />} />
         <Route path="/signup" element={isAuthenticated ? <Navigate to={getDefaultRoute()} replace /> : <SignupPage />} />
+
+        {/* Onboarding — بعد التسجيل مباشرة */}
+        <Route path="/onboarding" element={
+          <ProtectedRoute>
+            <OnboardingPage />
+          </ProtectedRoute>
+        } />
 
         {/* Admin Home */}
         <Route path="/home/admin" element={

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Hotel, ChevronDown, MapPin, Search,
   Tag, SlidersHorizontal, RotateCcw, Sparkles, Globe, X, Loader2,
+  Wallet, Heart,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { BACKEND_URL } from '../../config';
@@ -156,6 +157,26 @@ export default function HomePageUser() {
   const [searchQuery,        setSearchQuery]        = useState('');
   const [selectedProvinceId, setSelectedProvinceId] = useState('all');
   const [selectedCity,       setSelectedCity]       = useState('all');
+
+  // ── Onboarding data ────────────────────────────────────────────────────────
+  const [walletBalance,  setWalletBalance]  = useState<number | null>(null);
+  const [walletCurrency, setWalletCurrency] = useState('USD');
+  const [prefHotels,     setPrefHotels]     = useState<DisplayHotel[]>([]);
+
+  useEffect(() => {
+    const token = localStorage.getItem('nuzul_token') ?? '';
+    fetch(`${BACKEND_URL}/api/onboarding/status`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.json())
+      .then(d => {
+        if (d.success && d.wallet) {
+          setWalletBalance(d.wallet.balance);
+          setWalletCurrency(d.wallet.currency);
+        }
+      })
+      .catch(() => {});
+  }, []);
   const [allHotels,          setAllHotels]          = useState<DisplayHotel[]>([]);
   const [provinces,          setProvinces]          = useState<Province[]>([]);
   const [loadingHotels,      setLoadingHotels]      = useState(true);
@@ -275,6 +296,41 @@ export default function HomePageUser() {
         {/* ── نبضات الحجز الحية ── */}
         <LiveBookingBar />
       </div>
+
+      {/* ── شريط المحفظة والترحيب الشخصي ── */}
+      {walletBalance !== null && (
+        <div className="animate-reveal" style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          gap: 12, flexWrap: 'wrap', marginBottom: 24,
+          background: `linear-gradient(135deg, ${PALETTE.tealDeep}ee, ${PALETTE.ink}ee)`,
+          borderRadius: 16, padding: '16px 22px',
+          border: `1px solid ${PALETTE.teal}44`,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{
+              width: 40, height: 40, borderRadius: '50%',
+              background: `${PALETTE.brass}22`, border: `1px solid ${PALETTE.brass}44`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Wallet size={18} color={PALETTE.brassLight} />
+            </div>
+            <div>
+              <p style={{ margin: 0, fontSize: 11, color: 'rgba(255,255,255,0.6)', fontWeight: 600, fontFamily: "'Tajawal',sans-serif" }}>
+                رصيد محفظتك
+              </p>
+              <p style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#fff', fontFamily: "'Tajawal',sans-serif" }}>
+                {walletCurrency === 'USD' ? '$' : 'ل.س'}{walletBalance.toLocaleString()}
+              </p>
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Heart size={14} color={PALETTE.brassLight} />
+            <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)', fontFamily: "'Tajawal',sans-serif", fontWeight: 600 }}>
+              الفنادق ضمن ميزانيتك متاحة للحجز
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* ── نتائج البحث ── */}
       {searchResults && (
