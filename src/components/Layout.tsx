@@ -8,7 +8,6 @@ import {
 import { useAuthStore } from '../store/authStore';
 import { useNotifEventsStore } from '../store/notifEvents';
 import { BACKEND_URL } from '../config';
-import ChatbotWidget from './ChatbotWidget';
 
 interface Props { children: React.ReactNode; minimal?: boolean; }
 
@@ -253,7 +252,6 @@ export default function Layout({ children, minimal = false }: Props) {
           <main style={S.page}>{children}</main>
         </div>
       </div>
-      <ChatbotWidget />
     </>
   );
 }

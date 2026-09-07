@@ -12,6 +12,7 @@ import {
   themeStyles, type DisplayHotel,
 } from '../../components/HotelBookingFlow';
 import LiveBookingBar from '../../components/LiveBookingBar';
+import ChatbotWidget from '../../components/ChatbotWidget';
 
 // ── Lattice helper ─────────────────────────────────────────────────────────────
 const latticeTile = (color: string, opacity = 0.16) =>
@@ -386,6 +387,8 @@ export default function HomePageUser() {
           onBook={() => flow.startBooking(flow.viewHotel!)}
         />
       )}
+
+      <ChatbotWidget />
     </div>
   );
 }

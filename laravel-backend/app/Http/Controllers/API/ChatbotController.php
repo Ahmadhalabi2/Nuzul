@@ -89,7 +89,12 @@ class ChatbotController extends Controller
         $botText = null;
 
         try {
-            $modelsToTry = [$this->model, 'gemini-3.7-flash', 'gemini-3.5-flash', 'gemini-3.8-flash'];
+            $modelsToTry = [
+                $this->model,
+                'gemini-1.5-flash',
+                'gemini-1.5-flash-8b',
+                'gemini-1.0-pro',
+            ];
             $lastError   = '';
 
             foreach ($modelsToTry as $modelName) {
