@@ -43,6 +43,13 @@ function AdminHome() {
 }
 
 function UserHome() {
+  const { currentUser } = useAuthStore();
+
+  // لو ما أكمل الـ onboarding بعد → نوجّهه قبل ما يشوف الصفحة
+  if (currentUser && currentUser.onboarding_completed === false) {
+    return <Navigate to="/onboarding" replace />;
+  }
+
   return (
     <Layout>
       <HotelBookingFlowStyles />
