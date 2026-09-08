@@ -18,6 +18,8 @@ export interface ApiHotel {
   province_name: string | null;
   image: string | null;
   image_url: string | null;
+  image_lobby: string | null;
+  image_exterior: string | null;
   rating: number;
   stars: number;
   price: number;

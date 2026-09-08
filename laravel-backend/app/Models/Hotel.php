@@ -22,6 +22,8 @@ class Hotel extends Model
         'status',
         'tag',
         'image_url',
+        'image_lobby',
+        'image_exterior',
         'amenities',
         'offer_text',
         'description',

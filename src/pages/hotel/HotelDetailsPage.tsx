@@ -78,12 +78,24 @@ export default function HotelDetailsPage() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  // صور بتأثيرات مختلفة حتى تتوفر multi-image API
+  // الصور الحقيقية — لو ما رُفعت صورة معينة نستخدم CSS filter بديلاً
   const baseImg = hotel?.image ?? hotel?.image_url ?? '';
   const images = baseImg ? [
-    { src: baseImg, filter: 'none',                           label: 'الواجهة الرئيسية' },
-    { src: baseImg, filter: 'brightness(0.82) saturate(1.3)', label: 'اللوبي الداخلي'  },
-    { src: baseImg, filter: 'brightness(1.12) contrast(0.9)', label: 'المطل الخارجي'   },
+    {
+      src:    hotel?.image_url      ?? baseImg,
+      filter: 'none',
+      label:  'الواجهة الرئيسية',
+    },
+    {
+      src:    hotel?.image_lobby    ?? baseImg,
+      filter: hotel?.image_lobby    ? 'none' : 'brightness(0.82) saturate(1.3)',
+      label:  'اللوبي الداخلي',
+    },
+    {
+      src:    hotel?.image_exterior ?? baseImg,
+      filter: hotel?.image_exterior ? 'none' : 'brightness(1.12) contrast(0.9)',
+      label:  'المطل الخارجي',
+    },
   ] : [];
 
   const handleBook = () => navigate(`/book-hotel/${id}`);

@@ -17,6 +17,8 @@ export interface HotelFormData {
   status: 'active' | 'inactive';
   tag: string;
   image_url: string;
+  image_lobby: string;
+  image_exterior: string;
   amenities: string[];
   offer_text: string;
   description: string;
@@ -33,7 +35,8 @@ const EMPTY_FORM: HotelFormData = {
   name: '', city: '', province_id: '',
   stars: 3, price_per_night: 0, discount_price: '',
   rating: 4.0, rooms: 10, status: 'active',
-  tag: '', image_url: '', amenities: [], offer_text: '', description: '',
+  tag: '', image_url: '', image_lobby: '', image_exterior: '',
+  amenities: [], offer_text: '', description: '',
 };
 
 const PALETTE = {
@@ -58,9 +61,13 @@ export default function HotelFormModal({ mode, hotel, onClose, onSaved }: Props)
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState('');
   const [newAmenity, setNewAmenity] = useState('');
-  const [uploading, setUploading] = useState(false);
-  const firstInputRef = useRef<HTMLInputElement>(null);
-  const fileInputRef  = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading]           = useState(false);
+  const [uploadingLobby, setUploadingLobby]   = useState(false);
+  const [uploadingExt,   setUploadingExt]     = useState(false);
+  const firstInputRef  = useRef<HTMLInputElement>(null);
+  const fileInputRef   = useRef<HTMLInputElement>(null);
+  const lobbyInputRef  = useRef<HTMLInputElement>(null);
+  const extInputRef    = useRef<HTMLInputElement>(null);
 
   // ملء البيانات عند التعديل
   useEffect(() => {
@@ -77,6 +84,8 @@ export default function HotelFormModal({ mode, hotel, onClose, onSaved }: Props)
         status:         'active',
         tag:            '',
         image_url:      hotel.image,
+        image_lobby:    (hotel as any).image_lobby    ?? '',
+        image_exterior: (hotel as any).image_exterior ?? '',
         amenities:      [...(hotel.amenities ?? [])],
         offer_text:     hotel.offerText ?? '',
         description:    '',
@@ -111,7 +120,9 @@ export default function HotelFormModal({ mode, hotel, onClose, onSaved }: Props)
       rooms:           form.rooms,
       status:          form.status,
       tag:             form.tag.trim() || null,
-      image_url:       form.image_url.trim() || null,
+      image_url:       form.image_url.trim()       || null,
+      image_lobby:     form.image_lobby.trim()     || null,
+      image_exterior:  form.image_exterior.trim()  || null,
       amenities:       form.amenities,
       offer_text:      form.offer_text.trim() || null,
       description:     form.description.trim() || null,
@@ -143,29 +154,36 @@ export default function HotelFormModal({ mode, hotel, onClose, onSaved }: Props)
     }
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
+  const uploadImage = async (
+    file: File,
+    field: 'image_url' | 'image_lobby' | 'image_exterior',
+    setLoaderFn: (v: boolean) => void,
+    ref: React.RefObject<HTMLInputElement>,
+  ) => {
+    setLoaderFn(true);
     setError('');
     try {
-      const formData = new FormData();
-      formData.append('image', file);
-      const res = await fetch(`${BACKEND_URL}/api/hotels/upload-image`, {
+      const fd = new FormData();
+      fd.append('image', file);
+      const res  = await fetch(`${BACKEND_URL}/api/hotels/upload-image`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${localStorage.getItem('nuzul_token') ?? ''}` },
-        body: formData,
+        body: fd,
       });
       const data = await res.json();
-      if (data.success) set('image_url', data.imageUrl);
+      if (data.success) set(field, data.imageUrl);
       else setError(data.message ?? 'فشل الرفع.');
     } catch {
       setError('تعذّر رفع الصورة.');
     } finally {
-      setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      setLoaderFn(false);
+      if (ref.current) ref.current.value = '';
     }
   };
+
+  const handleFileUpload     = (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (f) uploadImage(f, 'image_url',      setUploading,     fileInputRef);  };
+  const handleLobbyUpload    = (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (f) uploadImage(f, 'image_lobby',    setUploadingLobby, lobbyInputRef); };
+  const handleExteriorUpload = (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (f) uploadImage(f, 'image_exterior', setUploadingExt,   extInputRef);   };
 
   const addAmenity = () => {    const val = newAmenity.trim();
     if (!val || form.amenities.includes(val)) return;
@@ -283,46 +301,51 @@ export default function HotelFormModal({ mode, hotel, onClose, onSaved }: Props)
           </div>
 
           {/* ── رابط الصورة + رفع من الجهاز ── */}
-          <Field label="صورة الفندق">
-            {/* معاينة */}
+          <Field label="📸 الواجهة الرئيسية">
             {form.image_url && (
-              <div style={{ borderRadius: 10, overflow: 'hidden', height: 130, marginBottom: 8 }}>
+              <div style={{ borderRadius: 10, overflow: 'hidden', height: 100, marginBottom: 8 }}>
                 <img src={form.image_url} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               </div>
             )}
-            {/* رابط URL */}
-            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-              <input
-                value={form.image_url}
-                onChange={e => set('image_url', e.target.value)}
-                placeholder="https://images.unsplash.com/... (رابط من الإنترنت)"
-                style={{ ...inp, flex: 1 }}
-              />
-              <div style={{ width: 36, height: 36, borderRadius: 8, background: '#f8fafc', border: `1px solid ${PALETTE.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <Image size={16} color={PALETTE.muted} />
+            <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+              <input value={form.image_url} onChange={e => set('image_url', e.target.value)}
+                placeholder="رابط الصورة أو ارفع من الجهاز" style={{ ...inp, flex: 1 }} />
+            </div>
+            <input ref={fileInputRef} type="file" accept="image/jpeg,image/jpg,image/png,image/webp"
+              onChange={handleFileUpload} style={{ display: 'none' }} />
+            <UploadBtn loading={uploading} onClick={() => fileInputRef.current?.click()} />
+          </Field>
+
+          {/* ── صورة اللوبي ── */}
+          <Field label="🏛️ اللوبي الداخلي">
+            {form.image_lobby && (
+              <div style={{ borderRadius: 10, overflow: 'hidden', height: 100, marginBottom: 8 }}>
+                <img src={form.image_lobby} alt="lobby" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               </div>
+            )}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+              <input value={form.image_lobby} onChange={e => set('image_lobby', e.target.value)}
+                placeholder="رابط صورة اللوبي أو ارفع من الجهاز" style={{ ...inp, flex: 1 }} />
             </div>
-            {/* أو رفع من الجهاز */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/jpeg,image/jpg,image/png,image/webp"
-                onChange={handleFileUpload}
-                style={{ display: 'none' }}
-              />
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
-                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, fontSize: 12, fontWeight: 600, color: PALETTE.primary, cursor: 'pointer', fontFamily: "'Tajawal',sans-serif" }}
-              >
-                {uploading
-                  ? <><Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> جاري الرفع...</>
-                  : <><Upload size={13} /> رفع من الجهاز</>}
-              </button>
-              <span style={{ fontSize: 11, color: PALETTE.muted }}>JPEG / PNG / WebP — حتى 5MB</span>
+            <input ref={lobbyInputRef} type="file" accept="image/jpeg,image/jpg,image/png,image/webp"
+              onChange={handleLobbyUpload} style={{ display: 'none' }} />
+            <UploadBtn loading={uploadingLobby} onClick={() => lobbyInputRef.current?.click()} />
+          </Field>
+
+          {/* ── صورة المطل الخارجي ── */}
+          <Field label="🌿 المطل الخارجي">
+            {form.image_exterior && (
+              <div style={{ borderRadius: 10, overflow: 'hidden', height: 100, marginBottom: 8 }}>
+                <img src={form.image_exterior} alt="exterior" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+              <input value={form.image_exterior} onChange={e => set('image_exterior', e.target.value)}
+                placeholder="رابط الصورة الخارجية أو ارفع من الجهاز" style={{ ...inp, flex: 1 }} />
             </div>
+            <input ref={extInputRef} type="file" accept="image/jpeg,image/jpg,image/png,image/webp"
+              onChange={handleExteriorUpload} style={{ display: 'none' }} />
+            <UploadBtn loading={uploadingExt} onClick={() => extInputRef.current?.click()} />
           </Field>
 
           {/* ── نص العرض ── */}
@@ -419,3 +442,20 @@ const inp: React.CSSProperties = {
   color: PALETTE.ink, fontFamily: "'Tajawal',sans-serif", direction: 'rtl',
   boxSizing: 'border-box',
 };
+
+function UploadBtn({ loading, onClick }: { loading: boolean; onClick: () => void }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <button type="button" onClick={onClick} disabled={loading}
+        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px',
+          background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8,
+          fontSize: 12, fontWeight: 600, color: PALETTE.primary,
+          cursor: loading ? 'not-allowed' : 'pointer', fontFamily: "'Tajawal',sans-serif" }}>
+        {loading
+          ? <><Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> جاري الرفع...</>
+          : <><Upload size={13} /> رفع من الجهاز</>}
+      </button>
+      <span style={{ fontSize: 11, color: PALETTE.muted }}>JPEG / PNG / WebP — حتى 5MB</span>
+    </div>
+  );
+}
