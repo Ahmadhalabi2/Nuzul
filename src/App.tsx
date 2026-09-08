@@ -19,6 +19,7 @@ import MyBookingsPage     from './pages/my-bookings/MyBookingsPage';
 import BookHotelPage      from './pages/book-hotel/BookHotelPage';
 import StartPage          from './pages/StartPage';
 import SupportChatPage    from './pages/support/SupportChatPage';
+import HotelDetailsPage   from './pages/hotel/HotelDetailsPage';
 import Layout             from './components/Layout';
 import { HotelBookingFlowStyles, PALETTE } from './components/HotelBookingFlow';
 
@@ -134,6 +135,13 @@ export default function App() {
         <Route path="/my-bookings" element={
           <ProtectedRoute>
             {role === 'support' ? <Navigate to="/support" replace /> : <MyBookingsPage />}
+          </ProtectedRoute>
+        } />
+
+        {/* Hotel Details — صفحة مستقلة لتفاصيل الفندق */}
+        <Route path="/hotel/:id" element={
+          <ProtectedRoute>
+            <HotelDetailsPage />
           </ProtectedRoute>
         } />
 

@@ -8,7 +8,7 @@ import { useAuthStore } from '../../store/authStore';
 import { BACKEND_URL } from '../../config';
 import {
   PALETTE, KhatamMark,
-  useHotelBookingFlow, HotelDetailsModal, HotelCard,
+  HotelCard,
   themeStyles, type DisplayHotel,
 } from '../../components/HotelBookingFlow';
 import LiveBookingBar from '../../components/LiveBookingBar';
@@ -442,7 +442,6 @@ function OffersSwiper({ hotels, onOpen }: { hotels: DisplayHotel[]; onOpen: (h: 
 export default function HomePageUser() {
   const navigate = useNavigate();
   const { currentUser } = useAuthStore();
-  const flow = useHotelBookingFlow(navigate);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProvinceId, setSelectedProvinceId] = useState('all');
@@ -505,12 +504,12 @@ export default function HomePageUser() {
         <SearchResultsSection
           query={searchQuery}
           results={searchResults}
-          onOpenHotel={flow.openDetails}
+          onOpenHotel={h => navigate(`/hotel/${h.id}`)}
         />
       ) : (
         <>
           {offerHotels.length > 0 && (
-            <OffersSwiper hotels={offerHotels} onOpen={h => flow.openDetails(h)} />
+            <OffersSwiper hotels={offerHotels} onOpen={h => navigate(`/hotel/${h.id}`)} />
           )}
 
           <div className="animate-reveal delay-1" style={themeStyles.sectionHeaderFlex}>
@@ -520,7 +519,7 @@ export default function HomePageUser() {
           </div>
           <div className="animate-reveal delay-1" style={themeStyles.hotelsGrid}>
             {allHotels.slice(0, RECOMMENDED_COUNT).map(h => (
-              <HotelCard key={h.id} hotel={h} onViewDetails={() => flow.openDetails(h)} />
+              <HotelCard key={h.id} hotel={h} onViewDetails={() => navigate(`/hotel/${h.id}`)} />
             ))}
           </div>
 
@@ -540,19 +539,11 @@ export default function HomePageUser() {
 
           <div style={{ ...themeStyles.hotelsGrid, marginTop: 24 }}>
             {byCity.map(h => (
-              <HotelCard key={h.id} hotel={h} onViewDetails={() => flow.openDetails(h)} />
+              <HotelCard key={h.id} hotel={h} onViewDetails={() => navigate(`/hotel/${h.id}`)} />
             ))}
           </div>
           {byCity.length === 0 && <NoResultsBox message='لا توجد فنادق في هذه المنطقة.' />}
         </>
-      )}
-
-      {flow.viewHotel && (
-        <HotelDetailsModal
-          hotel={flow.viewHotel}
-          onClose={flow.closeDetails}
-          onBook={() => flow.startBooking(flow.viewHotel!)}
-        />
       )}
 
       <ChatbotWidget />
