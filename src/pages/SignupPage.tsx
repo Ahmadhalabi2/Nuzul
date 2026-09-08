@@ -184,7 +184,7 @@ export default function SignupPage() {
       if (!data.success) { setError(data.message); return; }
       if (data.token) localStorage.setItem('nuzul_token', data.token);
       loginWithToken(data.user);
-      navigate('/onboarding', { replace: true });
+      navigate('/home', { replace: true });
     } catch {
       setError('تعذّر الاتصال بالخادم. تحقق من اتصالك بالإنترنت وحاول مجدداً.');
     } finally {
@@ -229,7 +229,7 @@ export default function SignupPage() {
       if (!data.success) { setError(data.message); return; }
       if (data.token) localStorage.setItem('nuzul_token', data.token);
       loginWithToken(data.user);
-      navigate('/onboarding', { replace: true });
+      navigate('/home', { replace: true });
     } catch {
       setError('تعذّر الاتصال بالخادم.');
     } finally {

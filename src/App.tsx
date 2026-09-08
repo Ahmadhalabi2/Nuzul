@@ -19,7 +19,6 @@ import MyBookingsPage     from './pages/my-bookings/MyBookingsPage';
 import BookHotelPage      from './pages/book-hotel/BookHotelPage';
 import StartPage          from './pages/StartPage';
 import SupportChatPage    from './pages/support/SupportChatPage';
-import OnboardingPage     from './pages/onboarding/OnboardingPage';
 import Layout             from './components/Layout';
 import { HotelBookingFlowStyles, PALETTE } from './components/HotelBookingFlow';
 
@@ -43,15 +42,6 @@ function AdminHome() {
 }
 
 function UserHome() {
-  const { currentUser } = useAuthStore();
-
-  // لو ما أكمل الـ onboarding بعد → مستخدم جديد سجّل للتو
-  // onboarding_completed === false (explicit) يعني جديد
-  // onboarding_completed === undefined يعني مستخدم قديم → تجاهل
-  if (currentUser?.role === 'user' && currentUser?.onboarding_completed === false) {
-    return <Navigate to="/onboarding" replace />;
-  }
-
   return (
     <Layout>
       <HotelBookingFlowStyles />
@@ -90,13 +80,6 @@ export default function App() {
         <Route path="/signup" element={isAuthenticated
           ? <Navigate to={getDefaultRoute()} replace />
           : <SignupPage />} />
-
-        {/* Onboarding — بعد التسجيل مباشرة، لا يعيد التوجيه حتى لو مسجّل */}
-        <Route path="/onboarding" element={
-          isAuthenticated
-            ? <OnboardingPage />
-            : <Navigate to="/login" replace />
-        } />
 
         {/* Admin Home */}
         <Route path="/home/admin" element={

@@ -17,7 +17,6 @@ class User extends Authenticatable
         'password',
         'role',
         'avatar',
-        'onboarding_completed',
     ];
 
     protected $hidden = [
@@ -68,6 +67,8 @@ class User extends Authenticatable
     {
         return $this->hasOne(Wallet::class);
     }
+
+
 
     public function supportThread()
     {

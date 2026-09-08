@@ -11,7 +11,6 @@ export interface User {
   role: Role;
   password: string;
   avatar?: string | null;
-  onboarding_completed?: boolean;
 }
 
 const API = `${BACKEND_URL}/api/auth`;

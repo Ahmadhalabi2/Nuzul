@@ -374,17 +374,16 @@ class AuthController extends Controller
     private function formatUser(User $user): array
     {
         return [
-            'id'                   => $user->id,
-            'name'                 => $user->name,
-            'email'                => $user->email,
-            'role'                 => $user->role,
-            'avatar'               => $user->avatar
+            'id'        => $user->id,
+            'name'      => $user->name,
+            'email'     => $user->email,
+            'role'      => $user->role,
+            'avatar'    => $user->avatar
                 ? (str_starts_with($user->avatar, 'http')
                     ? $user->avatar
                     : asset('storage/' . $user->avatar))
                 : null,
-            'onboarding_completed' => (bool) $user->onboarding_completed,
-            'createdAt'            => $user->created_at?->toISOString(),
+            'createdAt' => $user->created_at?->toISOString(),
         ];
     }
 }
