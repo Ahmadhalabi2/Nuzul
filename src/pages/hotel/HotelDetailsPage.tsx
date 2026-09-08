@@ -78,12 +78,13 @@ export default function HotelDetailsPage() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  // صور وهمية إضافية (حتى تتوفر multi-image API)
-  const images = hotel ? [
-    hotel.image ?? hotel.image_url ?? '',
-    hotel.image ?? hotel.image_url ?? '',
-    hotel.image ?? hotel.image_url ?? '',
-  ].filter(Boolean) : [];
+  // صور بتأثيرات مختلفة حتى تتوفر multi-image API
+  const baseImg = hotel.image ?? hotel.image_url ?? '';
+  const images = baseImg ? [
+    { src: baseImg, filter: 'none',                          label: 'الواجهة الرئيسية'  },
+    { src: baseImg, filter: 'brightness(0.82) saturate(1.3)', label: 'اللوبي الداخلي'   },
+    { src: baseImg, filter: 'brightness(1.12) contrast(0.9)', label: 'المطل الخارجي'    },
+  ] : [];
 
   const handleBook = () => navigate(`/book-hotel/${id}`);
 
@@ -144,8 +145,10 @@ export default function HotelDetailsPage() {
             {/* ── صورة رئيسية ── */}
             <div style={{ position: 'relative', borderRadius: 20, overflow: 'hidden',
               height: 360, marginBottom: 20, boxShadow: '0 12px 36px rgba(13,22,38,0.14)' }}>
-              <img src={images[activeImg] || hotel.image || ''} alt={hotel.name}
-                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+              <img src={images[activeImg]?.src || baseImg} alt={hotel.name}
+                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block',
+                  filter: images[activeImg]?.filter ?? 'none',
+                  transition: 'filter 0.4s ease' }} />
 
               {/* الـ gradient */}
               <div style={{ position: 'absolute', inset: 0,
@@ -195,10 +198,26 @@ export default function HotelDetailsPage() {
               <div style={{ display: 'flex', gap: 10, marginBottom: 24 }}>
                 {images.map((img, i) => (
                   <button key={i} className="thumb-btn" onClick={() => setActiveImg(i)}
-                    style={{ flex: 1, height: 72, borderRadius: 10, overflow: 'hidden', padding: 0,
+                    style={{ flex: 1, borderRadius: 12, overflow: 'hidden', padding: 0,
                       border: `2px solid ${i === activeImg ? PALETTE.teal : 'transparent'}`,
-                      cursor: 'pointer', transition: 'border-color 0.2s' }}>
-                    <img src={img} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                      cursor: 'pointer', transition: 'border-color 0.2s',
+                      display: 'flex', flexDirection: 'column', background: 'none' }}>
+                    <div style={{ height: 64, overflow: 'hidden' }}>
+                      <img src={img.src} alt={img.label}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block',
+                          filter: img.filter, transition: 'transform 0.3s' }} />
+                    </div>
+                    <div style={{
+                      padding: '5px 6px', background: i === activeImg ? PALETTE.teal : PALETTE.page,
+                      transition: 'background 0.2s',
+                    }}>
+                      <p style={{ margin: 0, fontSize: 10, fontWeight: 700, textAlign: 'center',
+                        color: i === activeImg ? '#fff' : PALETTE.ink600,
+                        fontFamily: "'Tajawal',sans-serif", whiteSpace: 'nowrap', overflow: 'hidden',
+                        textOverflow: 'ellipsis' }}>
+                        {img.label}
+                      </p>
+                    </div>
                   </button>
                 ))}
               </div>
