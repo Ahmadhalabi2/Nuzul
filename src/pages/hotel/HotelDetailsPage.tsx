@@ -79,11 +79,11 @@ export default function HotelDetailsPage() {
   }, [id]);
 
   // صور بتأثيرات مختلفة حتى تتوفر multi-image API
-  const baseImg = hotel.image ?? hotel.image_url ?? '';
+  const baseImg = hotel?.image ?? hotel?.image_url ?? '';
   const images = baseImg ? [
-    { src: baseImg, filter: 'none',                          label: 'الواجهة الرئيسية'  },
-    { src: baseImg, filter: 'brightness(0.82) saturate(1.3)', label: 'اللوبي الداخلي'   },
-    { src: baseImg, filter: 'brightness(1.12) contrast(0.9)', label: 'المطل الخارجي'    },
+    { src: baseImg, filter: 'none',                           label: 'الواجهة الرئيسية' },
+    { src: baseImg, filter: 'brightness(0.82) saturate(1.3)', label: 'اللوبي الداخلي'  },
+    { src: baseImg, filter: 'brightness(1.12) contrast(0.9)', label: 'المطل الخارجي'   },
   ] : [];
 
   const handleBook = () => navigate(`/book-hotel/${id}`);
