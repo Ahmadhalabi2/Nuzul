@@ -69,6 +69,9 @@ function mapBooking(b: any): Booking {
     decidedById:   String(b.decidedById  ?? b.decided_by_id  ?? ''),
     decidedByName: b.decidedByName ?? b.decided_by_name ?? '',
     reason:        b.reason ?? '',
+    paymentNotifiedAt: b.paymentNotifiedAt ?? b.payment_notified_at
+      ? new Date(b.paymentNotifiedAt ?? b.payment_notified_at).getTime()
+      : undefined,
   };
 }
 
@@ -303,7 +306,11 @@ export default function BookingsPage() {
             ) : filtered.map((b) => {
               const st = STATUS[b.status];
               return (
-                <tr key={b.id} style={S.tr}>
+                <tr key={b.id} style={{
+                  ...S.tr,
+                  background: b.paymentNotifiedAt && b.status === 'accepted_waiting_payment'
+                    ? '#fffdf0' : undefined,
+                }}>
                   <td style={{ ...S.td, fontWeight: 700, color: '#4f46e5', direction: 'ltr' }}>{b.id}</td>
                   <td style={S.td}>{b.userName}</td>
                   <td style={{ ...S.td, color: '#64748b' }}>{b.hotelName}<br /><span style={{ fontSize: 11, color: '#94a3b8' }}>{b.city}</span></td>
@@ -313,6 +320,16 @@ export default function BookingsPage() {
                   <td style={S.td}>
                     <span style={{ ...S.pill, background: st.bg, color: st.text }}>{st.icon} {st.label}</span>
                     {b.reason && <p style={{ margin: '4px 0 0', fontSize: 11, color: '#94a3b8' }}>السبب: {b.reason}</p>}
+                    {b.paymentNotifiedAt && b.status === 'accepted_waiting_payment' && (
+                      <div style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 4,
+                        marginTop: 5, background: '#fffbeb', border: '1px solid #fcd34d',
+                        borderRadius: 8, padding: '3px 8px', fontSize: 11, fontWeight: 700,
+                        color: '#b45309', fontFamily: "'Tajawal',sans-serif",
+                      }}>
+                        💳 أبلغ عن الدفع
+                      </div>
+                    )}
                   </td>
                   <td style={{ ...S.td, fontSize: 12 }}>
                     {b.decidedByName

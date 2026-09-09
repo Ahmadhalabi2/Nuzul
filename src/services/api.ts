@@ -159,6 +159,9 @@ export const bookingsApi = {
 
   sendConfirmation: (bookingId: number, userEmail: string) =>
     request<any>('POST', '/api/bookings/send-confirmation', { booking_id: bookingId, userEmail }),
+
+  notifyPayment: (id: number) =>
+    request<{ success: boolean; message: string }>('PATCH', `/api/bookings/${id}/notify-payment`),
 };
 
 // ── Notifications ─────────────────────────────────────────────────────────────

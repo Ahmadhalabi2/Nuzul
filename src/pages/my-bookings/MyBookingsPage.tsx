@@ -46,6 +46,9 @@ function mapApiBooking(b: any): Booking {
     decidedById:    String(b.decidedById ?? b.decided_by_id ?? ''),
     decidedByName:  b.decidedByName ?? b.decided_by_name ?? '',
     reason:         b.reason     ?? '',
+    paymentNotifiedAt: b.paymentNotifiedAt ?? b.payment_notified_at
+      ? new Date(b.paymentNotifiedAt ?? b.payment_notified_at).getTime()
+      : undefined,
   };
 }
 
@@ -104,12 +107,14 @@ function BookingDetailModal({
   booking: b,
   onClose,
   onCancel,
+  onNotifyPayment,
   cancelling,
 }: {
-  booking:   Booking;
-  onClose:   () => void;
-  onCancel:  (b: Booking) => void;
-  cancelling: string | null;
+  booking:         Booking;
+  onClose:         () => void;
+  onCancel:        (b: Booking) => void;
+  onNotifyPayment: (b: Booking) => void;
+  cancelling:      string | null;
 }) {
   const st        = STATUS[b.status] ?? DEFAULT_STATUS;
   const steps     = buildTimeline(b);
@@ -275,15 +280,37 @@ function BookingDetailModal({
         </div>
 
         {/* ── Footer ── */}
-        {canCancel && (
+        {(canCancel || (b.status === 'accepted_waiting_payment')) && (
           <div style={M.footer}>
-            <button style={M.cancelBtn}
-              onClick={() => onCancel(b)}
-              disabled={cancelling === b.id}>
-              {cancelling === b.id
-                ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> جاري الإلغاء...</>
-                : <><XCircle size={14} /> إلغاء الحجز</>}
-            </button>
+            {b.status === 'accepted_waiting_payment' && (
+              <button
+                style={{
+                  ...M.cancelBtn,
+                  background: b.paymentNotifiedAt ? '#E1EEE7' : '#F6EBCB',
+                  color: b.paymentNotifiedAt ? '#0A4437' : '#9C7825',
+                  border: `1px solid ${b.paymentNotifiedAt ? '#bbf7d0' : '#E8C766'}`,
+                  cursor: b.paymentNotifiedAt ? 'default' : 'pointer',
+                }}
+                onClick={() => { if (!b.paymentNotifiedAt) onNotifyPayment(b); }}
+                disabled={!!b.paymentNotifiedAt || cancelling === b.id}
+              >
+                <CreditCard size={14} />
+                {cancelling === b.id
+                  ? 'جاري الإرسال...'
+                  : b.paymentNotifiedAt
+                    ? 'تم إبلاغ الإدارة ✓'
+                    : 'أبلغ عن إتمام الدفع'}
+              </button>
+            )}
+            {canCancel && (
+              <button style={M.cancelBtn}
+                onClick={() => onCancel(b)}
+                disabled={cancelling === b.id}>
+                {cancelling === b.id
+                  ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> جاري الإلغاء...</>
+                  : <><XCircle size={14} /> إلغاء الحجز</>}
+              </button>
+            )}
             <button style={M.closeFooterBtn} onClick={onClose}>
               <ChevronLeft size={14} /> إغلاق
             </button>
@@ -305,6 +332,8 @@ export default function MyBookingsPage() {
   const [tab,            setTab]            = useState('all');
   const [ratingBooking,  setRatingBooking]  = useState<Booking | null>(null);
   const [cancelling,     setCancelling]     = useState<string | null>(null);
+  const [notifying,      setNotifying]      = useState<string | null>(null);
+  const [notifyToast,    setNotifyToast]    = useState<string | null>(null);
   const [detailBooking,  setDetailBooking]  = useState<Booking | null>(null);
 
   // ── جلب الحجوزات من الباك اند ─────────────────────────────────────────────
@@ -347,6 +376,22 @@ export default function MyBookingsPage() {
     finally { setCancelling(null); }
   };
 
+  // ── إبلاغ عن الدفع ────────────────────────────────────────────────────────
+  const handleNotifyPayment = async (b: Booking) => {
+    setNotifying(b.id);
+    try {
+      const res = await bookingsApi.notifyPayment(Number(b.id));
+      if (res.success) {
+        const now = Date.now();
+        setBookings(prev => prev.map(x => x.id === b.id ? { ...x, paymentNotifiedAt: now } : x));
+        setDetailBooking(prev => prev?.id === b.id ? { ...prev, paymentNotifiedAt: now } : prev);
+        setNotifyToast('تم إرسال إشعار الدفع للإدارة ✅');
+        setTimeout(() => setNotifyToast(null), 4000);
+      } else { alert(res.message); }
+    } catch { alert('تعذّر الاتصال بالخادم.'); }
+    finally { setNotifying(null); }
+  };
+
   return (
     <>
       <Layout>
@@ -357,6 +402,19 @@ export default function MyBookingsPage() {
           .tabs-container-lux { display:flex; gap:6px; margin-bottom:24px; border-bottom:1px solid #E5DFC8; overflow-x:auto; white-space:nowrap; }
           .tabs-container-lux::-webkit-scrollbar { display:none; }
         `}</style>
+
+        {/* Toast إبلاغ عن الدفع */}
+        {notifyToast && (
+          <div style={{
+            position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
+            zIndex: 9000, background: PALETTE.teal, color: '#fff',
+            padding: '12px 24px', borderRadius: 12, fontSize: 14, fontWeight: 700,
+            fontFamily: "'Tajawal',sans-serif", boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
+            direction: 'rtl',
+          }}>
+            {notifyToast}
+          </div>
+        )}
 
         <div style={S.wrap}>
           {/* Header */}
@@ -457,6 +515,26 @@ export default function MyBookingsPage() {
                               {cancelling === b.id ? 'جاري الإلغاء...' : 'إلغاء الحجز'}
                             </button>
                           )}
+                          {b.status === 'accepted_waiting_payment' && (
+                            <button
+                              style={{
+                                ...S.rateBtn,
+                                background: b.paymentNotifiedAt ? '#E1EEE7' : '#F6EBCB',
+                                color:      b.paymentNotifiedAt ? '#0A4437'  : '#9C7825',
+                                opacity: notifying === b.id ? 0.6 : 1,
+                                cursor: b.paymentNotifiedAt ? 'default' : 'pointer',
+                              }}
+                              onClick={e => { e.stopPropagation(); if (!b.paymentNotifiedAt) handleNotifyPayment(b); }}
+                              disabled={!!b.paymentNotifiedAt || notifying === b.id}
+                            >
+                              <CreditCard size={13} color={b.paymentNotifiedAt ? '#0A4437' : '#9C7825'} />
+                              {notifying === b.id
+                                ? 'جاري الإرسال...'
+                                : b.paymentNotifiedAt
+                                  ? 'تم إبلاغ الإدارة ✓'
+                                  : 'أبلغ عن الدفع'}
+                            </button>
+                          )}
                           {(isConfirmedStatus(b.status) || isCompletedStatus(b.status)) && (
                             <button style={{ ...S.rateBtn, background: hasRated(b.id) ? '#E1EEE7' : '#F6EBCB', color: hasRated(b.id) ? '#0A4437' : '#9C7825' }}
                               onClick={e => { e.stopPropagation(); setRatingBooking(b); }}>
@@ -493,6 +571,7 @@ export default function MyBookingsPage() {
           booking={detailBooking}
           onClose={() => setDetailBooking(null)}
           onCancel={handleCancel}
+          onNotifyPayment={handleNotifyPayment}
           cancelling={cancelling}
         />
       )}
@@ -547,11 +626,12 @@ const M: Record<string, React.CSSProperties> = {
     background: `linear-gradient(90deg, transparent, ${PALETTE.brass}, ${PALETTE.brassLight}, ${PALETTE.brass}, transparent)`,
   },
   closeBtn: {
-    position: 'absolute', top: 14, left: 14, width: 32, height: 32,
-    borderRadius: '50%', background: '#f3f4f6', border: 'none',
+    position: 'absolute', top: 7, left: 1, width: 32, height: 32,
+    borderRadius: '50%',  background: `linear-gradient(to bottom, ${PALETTE.teal}88, ${PALETTE.brass}55, ${PALETTE.line})`, border: 'none',
     cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-    color: PALETTE.ink600, transition: 'background 0.2s',
+    color:'white' ,transition: 'background 0.2s',
   },
+  
   header: {
     display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
     gap: 12, padding: '20px 22px 16px', flexWrap: 'wrap' as const,
@@ -570,8 +650,8 @@ const M: Record<string, React.CSSProperties> = {
     fontFamily: "'Tajawal',sans-serif",
   },
   pill: {
-    display: 'inline-flex', alignItems: 'center', gap: 5,
-    padding: '5px 12px', borderRadius: 20, fontSize: 12, fontWeight: 700, flexShrink: 0,
+    display: 'inline-flex', alignItems: 'center', gap: 5,marginLeft:20,
+    padding: '5px 14px' , borderRadius: 20, fontSize: 13, fontWeight: 700, flexShrink: 0,
   },
   body: { padding: '0 22px 20px' },
   timelineWrap: { marginBottom: 20 },

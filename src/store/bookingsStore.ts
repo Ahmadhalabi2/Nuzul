@@ -29,6 +29,7 @@ export interface Booking {
   paidAt?: number;
   decidedById?: string;
   decidedByName?: string;
+  paymentNotifiedAt?: number;
   reason?: string;
 }
 

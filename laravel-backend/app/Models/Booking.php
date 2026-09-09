@@ -31,16 +31,18 @@ class Booking extends Model
         'reason',
         'decided_at',
         'paid_at',
+        'payment_notified_at',
     ];
 
     protected function casts(): array
     {
         return [
-            'check_in'    => 'date:Y-m-d',
-            'check_out'   => 'date:Y-m-d',
-            'decided_at'  => 'datetime',
-            'paid_at'     => 'datetime',
-            'amount'      => 'float',
+            'check_in'             => 'date:Y-m-d',
+            'check_out'            => 'date:Y-m-d',
+            'decided_at'           => 'datetime',
+            'paid_at'              => 'datetime',
+            'payment_notified_at'  => 'datetime',
+            'amount'               => 'float',
         ];
     }
 

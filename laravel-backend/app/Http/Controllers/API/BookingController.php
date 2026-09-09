@@ -213,6 +213,45 @@ class BookingController extends Controller
     }
 
     // ─────────────────────────────────────────────────────────────────────
+    // PATCH /api/bookings/{id}/notify-payment  (user)
+    // المستخدم يبلّغ الأدمن إنه دفع — يُسجَّل payment_notified_at
+    // ─────────────────────────────────────────────────────────────────────
+    public function notifyPayment(Request $request, int $id)
+    {
+        $booking = Booking::findOrFail($id);
+        $actor   = $request->user();
+
+        // تأكد أن الحجز ملك المستخدم وبحالة تقبل الإبلاغ
+        if ($actor->isUser() && $booking->user_id !== $actor->id) {
+            return response()->json(['success' => false, 'message' => 'غير مصرح.'], 403);
+        }
+
+        if ($booking->status !== Booking::STATUS_ACCEPTED) {
+            return response()->json(['success' => false, 'message' => 'لا يمكن الإبلاغ عن الدفع في هذه المرحلة.'], 422);
+        }
+
+        $booking->update(['payment_notified_at' => now()]);
+
+        // إشعار للأدمن
+        $this->notify([
+            'booking_id'         => $booking->id,
+            'created_by_user_id' => $actor->id,
+            'created_by_name'    => $actor->name,
+            'target_role'        => 'superadmin',
+            'target_user_id'     => null,
+            'type'               => 'payment_notified',
+            'title'              => '💳 مستخدم أبلغ عن إتمام الدفع',
+            'description'        => "{$booking->user_name} أبلغ عن إتمام الدفع لحجزه في {$booking->hotel_name}. يرجى المراجعة والتأكيد.",
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'تم إرسال إشعار الدفع للإدارة بنجاح.',
+            'booking' => $this->format($booking->fresh()),
+        ]);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
     // PATCH /api/bookings/{id}/mark-paid  (superadmin)
     // ─────────────────────────────────────────────────────────────────────
     public function markPaid(Request $request, int $id)
@@ -415,10 +454,11 @@ class BookingController extends Controller
             'status'         => $b->status,
             'decidedByName'  => $b->decided_by_name,
             'reason'         => $b->reason,
-            'createdAt'      => $b->created_at?->toISOString(),
-            'decidedAt'      => $b->decided_at?->toISOString(),
-            'paidAt'         => $b->paid_at?->toISOString(),
-            'hasRating'      => $b->rating !== null,
+            'createdAt'           => $b->created_at?->toISOString(),
+            'decidedAt'           => $b->decided_at?->toISOString(),
+            'paidAt'              => $b->paid_at?->toISOString(),
+            'paymentNotifiedAt'   => $b->payment_notified_at?->toISOString(),
+            'hasRating'           => $b->rating !== null,
         ];
     }
 

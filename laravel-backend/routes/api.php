@@ -75,7 +75,8 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::delete('/{id}',               [BookingController::class, 'destroy']);
         });
         // user أو superadmin
-        Route::patch('/{id}/cancel',     [BookingController::class, 'cancel']);
+        Route::patch('/{id}/cancel',          [BookingController::class, 'cancel']);
+        Route::patch('/{id}/notify-payment',  [BookingController::class, 'notifyPayment']);
     });
 
     // Notifications
