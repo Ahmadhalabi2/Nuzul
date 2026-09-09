@@ -1,11 +1,16 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CalendarCheck, MapPin, Clock, CheckCircle, XCircle, Plus, CreditCard, AlertCircle, Star, Loader2 } from 'lucide-react';
+import {
+  CalendarCheck, MapPin, Clock, CheckCircle, XCircle, Plus,
+  CreditCard, AlertCircle, Star, Loader2, X, Hotel,
+  CalendarDays, Users, Coins, FileText, ChevronLeft,
+} from 'lucide-react';
 import Layout from '../../components/Layout';
 import { useAuthStore } from '../../store/authStore';
 import { useRatingsStore } from '../../store/ratingsStore';
 import RatingModal from '../../components/RatingModal';
 import { bookingsApi } from '../../services/api';
+import { PALETTE, formatSYP } from '../../components/HotelBookingFlow';
 import type { Booking } from '../../store/bookingsStore';
 
 const STATUS: Record<string, { label: string; bg: string; text: string; icon: React.ReactNode }> = {
@@ -44,6 +49,252 @@ function mapApiBooking(b: any): Booking {
   };
 }
 
+// ── Timeline steps definition ─────────────────────────────────────────────────
+function buildTimeline(b: Booking) {
+  const isCancelled = b.status.startsWith('cancelled');
+  const cancelByAdmin = b.status === 'cancelled_by_admin';
+
+  // المراحل الأساسية دائماً موجودة
+  const steps = [
+    {
+      key:       'created',
+      label:     'تم إرسال طلب الحجز',
+      sublabel:  b.createdAt ? new Date(b.createdAt).toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '',
+      icon:      <FileText size={15} />,
+      done:      true,
+      cancelled: false,
+    },
+    {
+      key:       'decision',
+      label:     isCancelled
+        ? (cancelByAdmin ? 'ملغي من الإدارة' : 'ملغي من المستخدم')
+        : b.status === 'pending_admin' ? 'قيد مراجعة الإدارة' : 'قرار الإدارة',
+      sublabel:  b.decidedAt
+        ? `${cancelByAdmin ? 'بواسطة' : ''} ${b.decidedByName ?? ''} — ${new Date(b.decidedAt).toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' })}`
+        : b.status === 'pending_admin' ? 'بانتظار المراجعة...' : '',
+      icon:      isCancelled ? <XCircle size={15} /> : <CheckCircle size={15} />,
+      done:      b.status !== 'pending_admin',
+      cancelled: isCancelled,
+    },
+    {
+      key:       'payment',
+      label:     'تأكيد الدفع',
+      sublabel:  b.paidAt ? new Date(b.paidAt).toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' }) : 'بانتظار الدفع',
+      icon:      <CreditCard size={15} />,
+      done:      !!b.paidAt || b.status === 'paid_confirmed' || b.status === 'completed',
+      cancelled: isCancelled,
+      hidden:    isCancelled,
+    },
+    {
+      key:       'completed',
+      label:     'إقامة مكتملة',
+      sublabel:  b.status === 'completed' ? 'شكراً لاختيارك نُزُل' : 'موعد الإقامة القادم',
+      icon:      <CalendarCheck size={15} />,
+      done:      b.status === 'completed',
+      cancelled: false,
+      hidden:    isCancelled,
+    },
+  ];
+
+  return steps.filter(s => !s.hidden);
+}
+
+// ── Booking Detail Modal ───────────────────────────────────────────────────────
+function BookingDetailModal({
+  booking: b,
+  onClose,
+  onCancel,
+  cancelling,
+}: {
+  booking:   Booking;
+  onClose:   () => void;
+  onCancel:  (b: Booking) => void;
+  cancelling: string | null;
+}) {
+  const st        = STATUS[b.status] ?? DEFAULT_STATUS;
+  const steps     = buildTimeline(b);
+  const canCancel = b.status === 'pending_admin' || b.status === 'accepted_waiting_payment';
+  const isCancelled = b.status.startsWith('cancelled');
+
+  // ── animation stagger ──
+  const [visibleSteps, setVisibleSteps] = useState<number[]>([]);
+  useEffect(() => {
+    steps.forEach((_, i) => {
+      setTimeout(() => setVisibleSteps(p => [...p, i]), i * 160 + 80);
+    });
+  
+  }, []);
+
+  const nodeColor = (step: ReturnType<typeof buildTimeline>[0]) => {
+    if (step.cancelled) return '#BD5B3E';
+    if (step.done)      return PALETTE.teal;
+    return PALETTE.line;
+  };
+
+  return (
+    <div style={M.overlay} onClick={onClose}>
+      <style>{`
+        @keyframes modalIn {
+          from { opacity:0; transform:translateY(24px) scale(0.97); }
+          to   { opacity:1; transform:translateY(0)   scale(1);    }
+        }
+        @keyframes stepIn {
+          from { opacity:0; transform:translateX(14px); }
+          to   { opacity:1; transform:translateX(0);    }
+        }
+        .modal-step-reveal { animation: stepIn 0.35s cubic-bezier(0.16,1,0.3,1) forwards; }
+      `}</style>
+
+      <div style={M.card} onClick={e => e.stopPropagation()}>
+
+        {/* ── الخط الذهبي العلوي ── */}
+        <div style={M.goldTopline} />
+
+        {/* ── Close ── */}
+        <button style={M.closeBtn} onClick={onClose}><X size={18} /></button>
+
+        {/* ── Header ── */}
+        <div style={M.header}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ ...M.hotelIcon, background: `${PALETTE.teal}18` }}>
+              <Hotel size={18} color={PALETTE.teal} />
+            </div>
+            <div>
+              <h2 style={M.hotelName}>{b.hotelName}</h2>
+              <p style={M.hotelLoc}><MapPin size={12} /> {b.city}</p>
+            </div>
+          </div>
+          <span style={{ ...M.pill, background: st.bg, color: st.text }}>
+            {st.icon} <span style={{ marginRight: 4 }}>{st.label}</span>
+          </span>
+        </div>
+
+        <div style={M.body}>
+
+          {/* ── التايم لاين ── */}
+          <div style={M.timelineWrap}>
+            <h3 style={M.sectionTitle}>مسار الحجز</h3>
+            <div style={{ position: 'relative', paddingRight: 32 }}>
+
+              {/* خط التدرج الرابط */}
+              <div style={M.timelineLine} />
+
+              {steps.map((step, i) => (
+                <div
+                  key={step.key}
+                  className={visibleSteps.includes(i) ? 'modal-step-reveal' : ''}
+                  style={{ ...M.stepRow, opacity: visibleSteps.includes(i) ? 1 : 0 }}
+                >
+                  {/* النقطة */}
+                  <div style={{
+                    ...M.stepNode,
+                    background:  step.done ? nodeColor(step) : 'transparent',
+                    border:      `2px solid ${nodeColor(step)}`,
+                    boxShadow:   step.done && !step.cancelled
+                      ? `0 0 0 4px ${PALETTE.teal}22`
+                      : step.cancelled ? `0 0 0 4px #BD5B3E22` : 'none',
+                  }}>
+                    {step.done
+                      ? <span style={{ color: '#fff', display: 'flex' }}>{step.icon}</span>
+                      : <span style={{ color: PALETTE.ink400, display: 'flex' }}>{step.icon}</span>
+                    }
+                  </div>
+
+                  {/* المحتوى */}
+                  <div style={M.stepContent}>
+                    <p style={{
+                      ...M.stepLabel,
+                      color: step.cancelled ? '#BD5B3E' : step.done ? PALETTE.ink900 : PALETTE.ink400,
+                      fontWeight: step.done ? 700 : 500,
+                    }}>{step.label}</p>
+                    {step.sublabel && (
+                      <p style={{ ...M.stepSub, color: step.cancelled ? '#BD5B3E99' : PALETTE.ink400 }}>
+                        {step.sublabel}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* شارة "الآن" */}
+                  {step.done && i === steps.filter(s => s.done).length - 1 && !isCancelled && (
+                    <span style={M.nowBadge}>الحالة الآن</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={M.divider} />
+
+          {/* ── تفاصيل الحجز ── */}
+          <div>
+            <h3 style={M.sectionTitle}>تفاصيل الإقامة</h3>
+            <div style={M.detailsGrid}>
+              {[
+                { icon: <CalendarDays size={14} />, label: 'تسجيل الوصول',  val: b.checkIn  },
+                { icon: <CalendarDays size={14} />, label: 'المغادرة',       val: b.checkOut },
+                { icon: <Clock        size={14} />, label: 'عدد الليالي',    val: `${b.nights} ليالٍ` },
+                { icon: <Users        size={14} />, label: 'عدد الضيوف',     val: `${b.guests} ضيف`   },
+                {
+                  icon: <Coins size={14} />,
+                  label: 'الإجمالي المدفوع',
+                  val:  `$${b.amount.toLocaleString()} ≈ ${formatSYP(b.amount)} ل.س`,
+                  highlight: true,
+                },
+                { icon: <FileText size={14} />, label: 'رقم الحجز', val: `#${b.id}` },
+              ].map((d, i) => (
+                <div key={i} style={M.detailItem}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: PALETTE.ink400, marginBottom: 4 }}>
+                    {d.icon}
+                    <span style={{ fontSize: 11, fontWeight: 600 }}>{d.label}</span>
+                  </div>
+                  <p style={{ margin: 0, fontSize: 14, fontWeight: 700,
+                    color: (d as any).highlight ? PALETTE.teal : PALETTE.ink900 }}>
+                    {d.val}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* سبب الإلغاء */}
+          {b.reason && (
+            <div style={M.cancelReason}>
+              <XCircle size={14} color="#BD5B3E" style={{ flexShrink: 0 }} />
+              <div>
+                <p style={{ margin: 0, fontSize: 12.5, fontWeight: 700, color: '#BD5B3E' }}>
+                  سبب الإلغاء: {b.reason}
+                </p>
+                {b.decidedByName && (
+                  <p style={{ margin: '3px 0 0', fontSize: 11.5, color: '#BD5B3E99' }}>
+                    بواسطة: {b.decidedByName}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── Footer ── */}
+        {canCancel && (
+          <div style={M.footer}>
+            <button style={M.cancelBtn}
+              onClick={() => onCancel(b)}
+              disabled={cancelling === b.id}>
+              {cancelling === b.id
+                ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> جاري الإلغاء...</>
+                : <><XCircle size={14} /> إلغاء الحجز</>}
+            </button>
+            <button style={M.closeFooterBtn} onClick={onClose}>
+              <ChevronLeft size={14} /> إغلاق
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Main Page Component ────────────────────────────────────────────────────────
 export default function MyBookingsPage() {
   const navigate = useNavigate();
   const { currentUser } = useAuthStore();
@@ -54,6 +305,7 @@ export default function MyBookingsPage() {
   const [tab,            setTab]            = useState('all');
   const [ratingBooking,  setRatingBooking]  = useState<Booking | null>(null);
   const [cancelling,     setCancelling]     = useState<string | null>(null);
+  const [detailBooking,  setDetailBooking]  = useState<Booking | null>(null);
 
   // ── جلب الحجوزات من الباك اند ─────────────────────────────────────────────
   const fetchBookings = useCallback(async () => {
@@ -89,6 +341,7 @@ export default function MyBookingsPage() {
       const res = await bookingsApi.cancel(Number(b.id));
       if (res.success) {
         setBookings(prev => prev.map(x => x.id === b.id ? { ...x, status: 'cancelled_by_user' } : x));
+        setDetailBooking(prev => prev?.id === b.id ? { ...prev, status: 'cancelled_by_user' } : prev);
       } else { alert(res.message); }
     } catch { alert('تعذّر الاتصال بالخادم.'); }
     finally { setCancelling(null); }
@@ -157,7 +410,8 @@ export default function MyBookingsPage() {
               {filtered.map(b => {
                 const st = STATUS[b.status] ?? DEFAULT_STATUS;
                 return (
-                  <div key={b.id} className="booking-card-lux" style={S.card}>
+                  <div key={b.id} className="booking-card-lux" style={{ ...S.card, cursor: 'pointer' }}
+                    onClick={() => setDetailBooking(b)}>
                     <div style={{ ...S.sideBar, background: st.text }} />
                     <div style={S.info}>
                       <div style={S.topRow}>
@@ -199,13 +453,13 @@ export default function MyBookingsPage() {
                         <div style={{ display: 'flex', gap: 8 }}>
                           {isPendingStatus(b.status) && (
                             <button style={{ ...S.cancelBtn, opacity: cancelling === b.id ? 0.6 : 1 }}
-                              onClick={() => handleCancel(b)} disabled={cancelling === b.id}>
+                              onClick={e => { e.stopPropagation(); handleCancel(b); }} disabled={cancelling === b.id}>
                               {cancelling === b.id ? 'جاري الإلغاء...' : 'إلغاء الحجز'}
                             </button>
                           )}
                           {(isConfirmedStatus(b.status) || isCompletedStatus(b.status)) && (
                             <button style={{ ...S.rateBtn, background: hasRated(b.id) ? '#E1EEE7' : '#F6EBCB', color: hasRated(b.id) ? '#0A4437' : '#9C7825' }}
-                              onClick={() => setRatingBooking(b)}>
+                              onClick={e => { e.stopPropagation(); setRatingBooking(b); }}>
                               <Star size={13} fill={hasRated(b.id) ? '#C69A3A' : 'none'} stroke="#C69A3A" />
                               {hasRated(b.id) ? `تقييمك: ${getRatingForBooking(b.id)?.stars}/5` : 'تقييم الإقامة'}
                             </button>
@@ -233,9 +487,19 @@ export default function MyBookingsPage() {
       {ratingBooking && (
         <RatingModal booking={ratingBooking} onClose={() => { setRatingBooking(null); fetchBookings(); }} />
       )}
+
+      {detailBooking && (
+        <BookingDetailModal
+          booking={detailBooking}
+          onClose={() => setDetailBooking(null)}
+          onCancel={handleCancel}
+          cancelling={cancelling}
+        />
+      )}
     </>
   );
 }
+
 
 const S: Record<string, React.CSSProperties> = {
   wrap:         { direction: 'rtl', padding: '10px 0', fontFamily: "'Tajawal',sans-serif" },
@@ -263,4 +527,122 @@ const S: Record<string, React.CSSProperties> = {
   cancelBtn:    { padding: '7px 14px', background: '#fef2f2', color: '#dc2626', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' },
   rateBtn:      { display: 'flex', alignItems: 'center', gap: 5, padding: '7px 14px', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' },
   empty:        { textAlign: 'center', padding: '48px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', background: '#fff', border: '1px dashed #e5e7eb', borderRadius: 16, gap: 4 },
+};
+
+// ── Modal Styles ──────────────────────────────────────────────────────────────
+const M: Record<string, React.CSSProperties> = {
+  overlay: {
+    position: 'fixed', inset: 0, background: 'rgba(13,22,38,0.45)',
+    backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center',
+    justifyContent: 'center', zIndex: 9999, padding: 16, direction: 'rtl',
+  },
+  card: {
+    background: '#FAFAF7', borderRadius: 20, width: '100%', maxWidth: 580,
+    maxHeight: '90vh', overflowY: 'auto', position: 'relative',
+    boxShadow: '0 32px 64px rgba(13,22,38,0.18), 0 0 0 1px rgba(198,154,61,0.15)',
+    animation: 'modalIn 0.3s cubic-bezier(0.16,1,0.3,1) forwards',
+  },
+  goldTopline: {
+    height: 3, borderRadius: '20px 20px 0 0',
+    background: `linear-gradient(90deg, transparent, ${PALETTE.brass}, ${PALETTE.brassLight}, ${PALETTE.brass}, transparent)`,
+  },
+  closeBtn: {
+    position: 'absolute', top: 14, left: 14, width: 32, height: 32,
+    borderRadius: '50%', background: '#f3f4f6', border: 'none',
+    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+    color: PALETTE.ink600, transition: 'background 0.2s',
+  },
+  header: {
+    display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
+    gap: 12, padding: '20px 22px 16px', flexWrap: 'wrap' as const,
+  },
+  hotelIcon: {
+    width: 40, height: 40, borderRadius: 12,
+    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  },
+  hotelName: {
+    margin: '0 0 2px', fontSize: 20, fontWeight: 700,
+    color: PALETTE.ink900, fontFamily: "'Amiri',serif", lineHeight: 1.3,
+  },
+  hotelLoc: {
+    margin: 0, fontSize: 12, color: PALETTE.ink400,
+    display: 'flex', alignItems: 'center', gap: 3,
+    fontFamily: "'Tajawal',sans-serif",
+  },
+  pill: {
+    display: 'inline-flex', alignItems: 'center', gap: 5,
+    padding: '5px 12px', borderRadius: 20, fontSize: 12, fontWeight: 700, flexShrink: 0,
+  },
+  body: { padding: '0 22px 20px' },
+  timelineWrap: { marginBottom: 20 },
+  sectionTitle: {
+    margin: '0 0 14px', fontSize: 13, fontWeight: 700,
+    color: PALETTE.ink600, letterSpacing: '0.05em',
+    textTransform: 'uppercase' as const, fontFamily: "'Tajawal',sans-serif",
+    display: 'flex', alignItems: 'center', gap: 8,
+  },
+  timelineLine: {
+    position: 'absolute', top: 12, bottom: 12, right: 11,
+    width: 2,
+    background: `linear-gradient(to bottom, ${PALETTE.teal}88, ${PALETTE.brass}55, ${PALETTE.line})`,
+    borderRadius: 2,
+  },
+  stepRow: {
+    display: 'flex', alignItems: 'flex-start', gap: 12,
+    marginBottom: 18, position: 'relative',
+  },
+  stepNode: {
+    width: 24, height: 24, borderRadius: '50%', flexShrink: 0,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    transition: 'all 0.3s',
+  },
+  stepContent: { flex: 1, paddingTop: 2 },
+  stepLabel: {
+    margin: '0 0 2px', fontSize: 14,
+    fontFamily: "'Tajawal',sans-serif", lineHeight: 1.4,
+  },
+  stepSub: {
+    margin: 0, fontSize: 11.5,
+    fontFamily: "'Tajawal',sans-serif",
+  },
+  nowBadge: {
+    background: `${PALETTE.brass}22`, color: PALETTE.brass,
+    border: `1px solid ${PALETTE.brass}44`,
+    fontSize: 10, fontWeight: 700, padding: '2px 8px',
+    borderRadius: 20, flexShrink: 0, marginTop: 4,
+    fontFamily: "'Tajawal',sans-serif",
+  },
+  divider: {
+    height: 1, background: PALETTE.line, margin: '0 0 20px',
+  },
+  detailsGrid: {
+    display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 12,
+  },
+  detailItem: {
+    background: '#fff', border: `1px solid ${PALETTE.line}`,
+    borderRadius: 12, padding: '12px 14px',
+  },
+  cancelReason: {
+    display: 'flex', alignItems: 'flex-start', gap: 8,
+    background: '#fef2f2', border: '1px solid #fecaca',
+    borderRadius: 10, padding: '12px 14px', marginTop: 16,
+  },
+  footer: {
+    display: 'flex', gap: 10, padding: '14px 22px 20px',
+    borderTop: `1px solid ${PALETTE.line}`, justifyContent: 'flex-end',
+  },
+  cancelBtn: {
+    display: 'flex', alignItems: 'center', gap: 6,
+    padding: '9px 18px', background: '#fef2f2', color: '#dc2626',
+    border: '1px solid #fecaca', borderRadius: 10,
+    fontSize: 13, fontWeight: 700, cursor: 'pointer',
+    fontFamily: "'Tajawal',sans-serif",
+  },
+  closeFooterBtn: {
+    display: 'flex', alignItems: 'center', gap: 6,
+    padding: '9px 18px', background: PALETTE.page, color: PALETTE.ink600,
+    border: `1px solid ${PALETTE.line}`, borderRadius: 10,
+    fontSize: 13, fontWeight: 700, cursor: 'pointer',
+    fontFamily: "'Tajawal',sans-serif",
+  },
 };
