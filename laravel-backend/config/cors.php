@@ -5,16 +5,23 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => [
-        'http://localhost:3000',
-        'http://localhost:3001',
-        'http://localhost:5173',
-        'http://127.0.0.1:3000',
-        'http://127.0.0.1:3001',
-        'http://127.0.0.1:5173',
-    ],
+    'allowed_origins' => array_filter(array_merge(
+        [
+            'http://localhost:3000',
+            'http://localhost:3001',
+            'http://localhost:5173',
+            'http://127.0.0.1:3000',
+            'http://127.0.0.1:3001',
+            'http://127.0.0.1:5173',
+        ],
+        array_map('trim', explode(',', env('FRONTEND_URL', '')))
+    )),
 
-    'allowed_origins_patterns' => [],
+    'allowed_origins_patterns' => [
+        '#^https://[a-z0-9\-]+\.netlify\.app$#',
+        '#^https://[a-z0-9\-]+\.vercel\.app$#',
+        '#^https://[a-z0-9\-]+\.up\.railway\.app$#',
+    ],
 
     'allowed_headers' => ['*'],
 
