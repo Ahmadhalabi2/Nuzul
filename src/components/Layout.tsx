@@ -196,7 +196,7 @@ export default function Layout({ children, minimal = false }: Props) {
 
         {/* ── MAIN ── */}
         <div style={S.mainWrap}>
-          <header style={{ ...S.topbar, ...(minimal ? { justifyContent: 'flex-start' } : {}) }}>
+          <header style={{ ...S.topbar, ...(minimal ? { justifyContent: 'flex-start' } : {}) }} className="nuzul-topbar">
             {minimal ? (
               <button style={S.desktopLogo} onClick={() => go(homeRoute)}>
                 <div style={{ ...S.logoMark, width: 28, height: 28 }}><Hotel size={14} color="#8B681B" strokeWidth={2.2} /></div>
@@ -249,7 +249,7 @@ export default function Layout({ children, minimal = false }: Props) {
             )}
           </header>
 
-          <main style={S.page}>{children}</main>
+          <main style={S.page} className="nuzul-page">{children}</main>
         </div>
       </div>
     </>

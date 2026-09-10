@@ -1,21 +1,294 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ar" dir="rtl">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#0f172a" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+    <meta name="theme-color" content="#0E5C4A" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <title>نُزُل</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <style>
       *, *::before, *::after { box-sizing: border-box; }
-      body { margin: 0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #f8fafc; }
+      body {
+        margin: 0;
+        font-family: 'Tajawal', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        background: #F1F4EF;
+        overflow-x: hidden;
+        -webkit-font-smoothing: antialiased;
+      }
       #root { min-height: 100vh; }
+
+      /* ══════════════════════════════════════════════════════════════
+         نُزُل — Global Responsive Design System
+         Breakpoints:
+           xs  : ≤ 359px   (أصغر الهواتف)
+           sm  : ≤ 480px   (هاتف عادي)
+           md  : ≤ 768px   (تابلت / هاتف كبير)
+           lg  : ≤ 1024px  (لابتوب صغير)
+         ══════════════════════════════════════════════════════════════ */
+
+      /* ── Layout: page padding ─────────────────────────────────── */
+      @media (max-width: 768px) {
+        .nuzul-page { padding: 16px 14px !important; }
+      }
+      @media (max-width: 480px) {
+        .nuzul-page { padding: 12px 10px !important; }
+      }
+
+      /* ── HomePageAdmin: Hero ──────────────────────────────────── */
+      @media (max-width: 768px) {
+        .admin-hero {
+          flex-direction: column !important;
+          padding: 28px 20px !important;
+          gap: 20px !important;
+          border-radius: 16px !important;
+        }
+        .admin-hero-text { max-width: 100% !important; }
+        .admin-status-card { display: none !important; }
+        .admin-hero-title { font-size: 22px !important; }
+        .admin-hero-btns { flex-direction: column !important; gap: 10px !important; }
+        .admin-hero-btns button { width: 100% !important; justify-content: center !important; }
+      }
+
+      /* ── KPI Grid ─────────────────────────────────────────────── */
+      @media (max-width: 768px) {
+        .metrics-band { grid-template-columns: repeat(2, 1fr) !important; }
+      }
+      @media (max-width: 380px) {
+        .metrics-band { grid-template-columns: 1fr !important; }
+      }
+
+      /* ── Quick Links Grid ─────────────────────────────────────── */
+      @media (max-width: 768px) {
+        .admin-quick-grid { grid-template-columns: repeat(2, 1fr) !important; }
+      }
+      @media (max-width: 380px) {
+        .admin-quick-grid { grid-template-columns: 1fr !important; }
+      }
+
+      /* ── Hotels Grid (shared) ─────────────────────────────────── */
+      @media (max-width: 768px) {
+        .hotels-grid-responsive {
+          grid-template-columns: repeat(2, 1fr) !important;
+          gap: 12px !important;
+        }
+      }
+      @media (max-width: 480px) {
+        .hotels-grid-responsive { grid-template-columns: 1fr !important; }
+      }
+
+      /* ── HomePageUser: Hero ───────────────────────────────────── */
+      @media (max-width: 768px) {
+        .user-hero {
+          padding: 32px 18px 28px !important;
+          border-radius: 16px !important;
+          margin-bottom: 20px !important;
+        }
+        .user-hero-title { font-size: 22px !important; line-height: 1.4 !important; }
+        .user-search-bar { padding: 10px 14px !important; }
+      }
+      @media (max-width: 480px) {
+        .user-hero { padding: 24px 14px 20px !important; }
+        .user-hero-title { font-size: 19px !important; }
+      }
+
+      /* ── BookHotelPage ────────────────────────────────────────── */
+      @media (max-width: 768px) {
+        .book-hotel-layout {
+          grid-template-columns: 1fr !important;
+          gap: 18px !important;
+        }
+        .book-hotel-img-wrap { height: 200px !important; }
+        .book-hotel-row {
+          flex-direction: column !important;
+          gap: 8px !important;
+        }
+        .book-hotel-row > div { flex: unset !important; width: 100% !important; }
+      }
+
+      /* ── BookingsPage (admin table) ───────────────────────────── */
+      @media (max-width: 768px) {
+        .bookings-header {
+          flex-direction: column !important;
+          align-items: flex-start !important;
+          gap: 12px !important;
+        }
+        .bookings-table-wrap { font-size: 11px !important; }
+        .bookings-table-wrap td,
+        .bookings-table-wrap th { padding: 8px 6px !important; }
+        .bookings-hide-mobile { display: none !important; }
+      }
+
+      /* ── MyBookingsPage ───────────────────────────────────────── */
+      @media (max-width: 480px) {
+        .booking-meta-row {
+          grid-template-columns: repeat(2, 1fr) !important;
+        }
+        .booking-card-top-row {
+          flex-direction: column !important;
+          align-items: flex-start !important;
+          gap: 8px !important;
+        }
+      }
+
+      /* ── HotelDetailsPage ─────────────────────────────────────── */
+      @media (max-width: 768px) {
+        .hotel-detail-info-grid {
+          grid-template-columns: 1fr !important;
+        }
+        .hotel-detail-extra-grid {
+          grid-template-columns: repeat(2, 1fr) !important;
+        }
+      }
+      @media (max-width: 480px) {
+        .hotel-detail-extra-grid {
+          grid-template-columns: 1fr !important;
+        }
+      }
+
+      /* ── Destination Filter Panel ─────────────────────────────── */
+      @media (max-width: 768px) {
+        .dest-panel { padding: 16px !important; }
+        .dest-fields-responsive { flex-direction: column !important; }
+        .dest-fields-responsive > label,
+        .dest-fields-responsive > div {
+          width: 100% !important;
+          flex: unset !important;
+          min-width: unset !important;
+        }
+      }
+
+      /* ── Support Chat ─────────────────────────────────────────── */
+      @media (max-width: 768px) {
+        .support-layout {
+          grid-template-columns: 1fr !important;
+          height: auto !important;
+        }
+        .support-threads-panel {
+          height: 280px !important;
+          border-left: none !important;
+          border-bottom: 1px solid #E5DFC8 !important;
+        }
+      }
+
+      /* ── Analytics Charts ─────────────────────────────────────── */
+      @media (max-width: 768px) {
+        .analytics-grid {
+          grid-template-columns: 1fr !important;
+          gap: 16px !important;
+        }
+        .analytics-kpi-grid {
+          grid-template-columns: repeat(2, 1fr) !important;
+        }
+      }
+      @media (max-width: 480px) {
+        .analytics-kpi-grid {
+          grid-template-columns: 1fr !important;
+        }
+      }
+
+      /* ── Settings / Profile ───────────────────────────────────── */
+      @media (max-width: 768px) {
+        .settings-layout {
+          flex-direction: column !important;
+          gap: 16px !important;
+        }
+        .settings-sidebar {
+          width: 100% !important;
+          flex-direction: row !important;
+          overflow-x: auto !important;
+          padding-bottom: 8px !important;
+        }
+      }
+
+      /* ── Modals ───────────────────────────────────────────────── */
+      @media (max-width: 768px) {
+        .modal-card-responsive {
+          width: 96% !important;
+          padding: 20px 14px !important;
+          border-radius: 16px !important;
+          max-height: 92vh !important;
+        }
+      }
+
+      /* ── Section header flex ──────────────────────────────────── */
+      @media (max-width: 480px) {
+        .section-header-flex-responsive {
+          flex-direction: column !important;
+          align-items: flex-start !important;
+          gap: 8px !important;
+        }
+      }
+
+      /* ── Users / Revenue / Rooms Pages ───────────────────────── */
+      @media (max-width: 768px) {
+        .page-header-responsive {
+          flex-direction: column !important;
+          align-items: flex-start !important;
+          gap: 12px !important;
+        }
+        .data-table-responsive { font-size: 11px !important; }
+        .data-table-responsive td,
+        .data-table-responsive th { padding: 8px 6px !important; }
+        .hide-on-mobile { display: none !important; }
+      }
+
+      /* ── Topbar (Layout) ──────────────────────────────────────── */
+      @media (max-width: 480px) {
+        .nuzul-topbar { padding: 0 12px !important; }
+      }
+
+      /* ── StartPage ────────────────────────────────────────────── */
+      @media (max-width: 1023px) {
+        .splash-root { height: auto !important; min-height: 100vh; overflow-y: auto !important; }
+        .hero-wrap {
+          height: auto !important;
+          min-height: 100vh;
+          padding: 32px 0 !important;
+          align-items: flex-start !important;
+        }
+      }
+      @media (max-width: 480px) {
+        .hero-ctas-mobile { flex-direction: column !important; }
+        .hero-ctas-mobile button { width: 100% !important; min-width: unset !important; }
+      }
+
+      /* ── Booking Detail Modal Timeline ───────────────────────── */
+      @media (max-width: 480px) {
+        .booking-detail-modal {
+          padding: 0 14px 16px !important;
+        }
+        .booking-detail-footer {
+          flex-direction: column !important;
+          gap: 8px !important;
+        }
+        .booking-detail-footer button { width: 100% !important; justify-content: center !important; }
+        .booking-details-grid {
+          grid-template-columns: 1fr !important;
+        }
+      }
+
+      /* ── Prevent iOS tap highlight ────────────────────────────── */
+      button, a { -webkit-tap-highlight-color: transparent; }
+
+      /* ── Smooth scrolling ─────────────────────────────────────── */
+      html { scroll-behavior: smooth; }
+
+      /* ── Custom scrollbar (desktop) ───────────────────────────── */
+      @media (min-width: 769px) {
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f4ef; }
+        ::-webkit-scrollbar-thumb { background: #C69A3D44; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #C69A3D88; }
+      }
     </style>
   </head>
   <body>
-    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <noscript>تطبيق نُزُل يتطلب تفعيل JavaScript في متصفحك.</noscript>
     <div id="root"></div>
   </body>
 </html>

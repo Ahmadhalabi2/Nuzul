@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './store/authStore';
 import ProtectedRoute from './routes/ProtectedRoute';
+import ErrorBoundary  from './components/ErrorBoundary';
 
 import LoginPage          from './pages/LoginPage';
 import SignupPage         from './pages/SignupPage';
@@ -73,6 +74,7 @@ export default function App() {
   };
 
   return (
+    <ErrorBoundary section="App">
     <BrowserRouter>
       <Routes>
         {/* Public */}
@@ -166,6 +168,7 @@ export default function App() {
         <Route path="*" element={<Navigate to={isAuthenticated ? getDefaultRoute() : '/'} replace />} />
       </Routes>
     </BrowserRouter>
+    </ErrorBoundary>
   );
 }
 
