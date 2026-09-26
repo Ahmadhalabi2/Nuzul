@@ -1,23 +1,27 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useAuthStore } from '../store/authStore';
-import { useHotelsStore } from '../store/hotelsStore';
-import { SYRIA_PROVINCES } from '../data/syria';
+import { hotelsApi } from '../services/api';
 import { ArrowLeft, CalendarCheck, Shield, Wallet, Clock, Hotel } from 'lucide-react';
 
 export default function StartPage() {
   const navigate = useNavigate();
   const { currentUser } = useAuthStore();
-  const { hotels } = useHotelsStore();
+  const [activeHotelsCount, setActiveHotelsCount] = useState(0);
+  const provincesCount = 13; // عدد محافظات سوريا الثابت
+
+  useEffect(() => {
+    hotelsApi.list()
+      .then(res => { if (res.success) setActiveHotelsCount(res.hotels.length); })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = previousOverflow; };
   }, []);
-
-  const activeHotelsCount = useMemo(() => hotels.filter((h) => h.status === 'active').length, [hotels]);
 
   const isLoggedIn = !!currentUser;
   const isAdmin = currentUser?.role === 'superadmin';
@@ -257,7 +261,7 @@ export default function StartPage() {
               </div>
               <div className="stat-box" style={S.stat}>
                 <span style={S.statLabel}>وجهات سورية</span>
-                <strong style={S.statNumber}>{SYRIA_PROVINCES.length}</strong>
+                <strong style={S.statNumber}>{provincesCount}</strong>
               </div>
               <div className="stat-box" style={S.stat}>
                 <span style={S.statLabel}>بوابات تأكيد فورية</span>

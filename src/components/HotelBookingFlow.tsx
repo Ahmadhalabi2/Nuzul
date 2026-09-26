@@ -1,7 +1,5 @@
 import { useState } from 'react';
 import { MapPin, Star, X, Calendar, UserPlus, Tag, Coins, Info, Sparkles } from 'lucide-react';
-import { useHotelsStore } from '../store/hotelsStore';
-import { SYRIA_PROVINCES, SYRIA_HOTELS } from '../data/syria';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // نظام التصميم الموحّد لتدفق الحجز — نفس هوية صفحة "عرض الكل" (الرئيسية)
@@ -79,26 +77,7 @@ export type DisplayHotel = {
   tag?: string;
 };
 
-export function buildDisplayHotels(): DisplayHotel[] {
-  return SYRIA_HOTELS.map((h) => {
-    const province = SYRIA_PROVINCES.find((p) => p.id === h.provinceId);
-    return {
-      id: h.id,
-      name: h.name,
-      provinceId: h.provinceId,
-      provinceName: province?.name || '',
-      city: h.city,
-      country: 'سوريا',
-      image: h.imageUrl,
-      rating: h.rating,
-      stars: h.stars,
-      price: h.discountPrice ?? h.pricePerNight,
-      originalPrice: h.discountPrice ? h.pricePerNight : undefined,
-      amenities: h.features,
-      offerText: h.offerText,
-    };
-  });
-}
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // خطاف مشترك لآلية "عرض التفاصيل ← الحجز ← تثبيت مباشر" — نفس الشي بكل الصفحات
@@ -106,8 +85,6 @@ export function buildDisplayHotels(): DisplayHotel[] {
 // مباشرة لصفحة "حجوزاتي" — بدون أي نافذة نجاح وسيطة.
 // ─────────────────────────────────────────────────────────────────────────────
 export function useHotelBookingFlow(navigate?: (path: string) => void) {
-  const { hotels } = useHotelsStore();
-
   const [viewHotel, setViewHotel] = useState<DisplayHotel | null>(null);
 
   const openDetails  = (hotel: DisplayHotel) => setViewHotel(hotel);

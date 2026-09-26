@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { Search, Plus, Edit2, Trash2, Globe2, Loader2 } from 'lucide-react';
 import Layout from '../../components/Layout';
 import { useAuthStore } from '../../store/authStore';
-import { SYRIA_PROVINCES } from '../../data/syria';
 import {
   PALETTE, useHotelBookingFlow,
   HotelDetailsModal, HotelCard,
@@ -74,10 +73,19 @@ export default function HotelsPage() {
   const [deleteError,    setDeleteError]    = useState('');
   const [hotels,         setHotels]         = useState<DisplayHotel[]>([]);
   const [loadingHotels,  setLoadingHotels]  = useState(true);
+  const [provinces,      setProvinces]      = useState<{ id: number; name_ar: string }[]>([]);
   const [toast,          setToast]          = useState('');
 
   const flow = useHotelBookingFlow();
   const token = () => localStorage.getItem('nuzul_token') ?? '';
+
+  // ── جلب المحافظات من الـ API ────────────────────────────────────────────────
+  useEffect(() => {
+    fetch(`${BACKEND_URL}/api/provinces`)
+      .then(r => r.json())
+      .then(d => { if (d.success) setProvinces(d.provinces); })
+      .catch(() => {});
+  }, []);
 
   // ── جلب الفنادق من الباك اند ──────────────────────────────────────────────
   const fetchHotels = useCallback(async () => {
@@ -201,7 +209,7 @@ export default function HotelsPage() {
           <Globe2 size={15} color="#93A29B" />
           <select style={S.select} value={provinceId} onChange={e => { setProvinceId(e.target.value); setCity('all'); }}>
             <option value="all">كل المحافظات</option>
-            {SYRIA_PROVINCES.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            {provinces.map(p => <option key={p.id} value={String(p.id)}>{p.name_ar}</option>)}
           </select>
         </div>
         <div style={S.selectWrap}>

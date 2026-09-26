@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Save, Plus, Trash2, Image, Loader2, Upload } from 'lucide-react';
 import { BACKEND_URL } from '../config';
-import { SYRIA_PROVINCES } from '../data/syria';
 import type { DisplayHotel } from './HotelBookingFlow';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -50,16 +49,20 @@ const PALETTE = {
 };
 
 // ─── Province lookup ──────────────────────────────────────────────────────────
-function getProvinceId(provinceId: string): number | '' {
-  // نحوّل province string ID مثل "syr-damascus" لرقم ترتيبي
-  const idx = SYRIA_PROVINCES.findIndex(p => p.id === provinceId);
-  return idx >= 0 ? idx + 1 : '';
-}
+// محذوف — المحافظات الآن من الـ API
 
 export default function HotelFormModal({ mode, hotel, onClose, onSaved }: Props) {
   const [form, setForm]           = useState<HotelFormData>(EMPTY_FORM);
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState('');
+  const [provinces, setProvinces] = useState<{ id: number; name_ar: string }[]>([]);
+
+  useEffect(() => {
+    fetch(`${BACKEND_URL}/api/provinces`)
+      .then(r => r.json())
+      .then(d => { if (d.success) setProvinces(d.provinces); })
+      .catch(() => {});
+  }, []);
   const [newAmenity, setNewAmenity] = useState('');
   const [uploading, setUploading]           = useState(false);
   const [uploadingLobby, setUploadingLobby]   = useState(false);
@@ -75,7 +78,7 @@ export default function HotelFormModal({ mode, hotel, onClose, onSaved }: Props)
       setForm({
         name:           hotel.name,
         city:           hotel.city,
-        province_id:    getProvinceId(hotel.provinceId),
+        province_id:    hotel.provinceId ? Number(hotel.provinceId) : '',
         stars:          hotel.stars,
         price_per_night: hotel.originalPrice ?? hotel.price,
         discount_price: hotel.originalPrice ? hotel.price : '',
@@ -246,8 +249,8 @@ export default function HotelFormModal({ mode, hotel, onClose, onSaved }: Props)
             <Field label="المحافظة *">
               <select value={form.province_id} onChange={e => set('province_id', Number(e.target.value))} style={inp}>
                 <option value="">اختر...</option>
-                {SYRIA_PROVINCES.map((p, i) => (
-                  <option key={p.id} value={i + 1}>{p.name}</option>
+                {provinces.map(p => (
+                  <option key={p.id} value={p.id}>{p.name_ar}</option>
                 ))}
               </select>
             </Field>

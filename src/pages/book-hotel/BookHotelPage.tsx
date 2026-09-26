@@ -1,13 +1,12 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { MapPin, Star, Wifi, ArrowRight, CheckCircle2, Users, CalendarDays } from 'lucide-react';
+import { MapPin, Star, Wifi, ArrowRight, CheckCircle2, Users, CalendarDays, Loader2 } from 'lucide-react';
 import Layout from '../../components/Layout';
 import { useAuthStore } from '../../store/authStore';
 import { useBookingsStore } from '../../store/bookingsStore';
-import { useNotifEventsStore } from '../../store/notifEvents';import { useHotelsStore } from '../../store/hotelsStore';
-import { SYRIA_COUNTRY_NAME, SYRIA_HOTELS } from '../../data/syria';
+import { useNotifEventsStore } from '../../store/notifEvents';
 import type { DisplayHotel } from '../../components/HotelBookingFlow';
-import { bookingsApi } from '../../services/api';
+import { bookingsApi, hotelsApi } from '../../services/api';
 
 /* ─────────────────────────────────────────────────────────
    هوية بصرية: أخضر زمردي شامي + لمسة نحاس ذهبي على خلفية
@@ -50,96 +49,55 @@ export default function BookHotelPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { currentUser } = useAuthStore();
-  const { hotels } = useHotelsStore();
 
-  // أولاً: نحاول نأخذ الفندق من sessionStorage (القادم من navigate)
-  const hotelFromState: DisplayHotel | undefined = (() => {
+  // جلب الفندق من الـ API مباشرة باستخدام الـ id
+  const [hotel,   setHotel]   = useState<DisplayHotel | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!id) return;
+    // أولاً: نجرب sessionStorage (لو جاي من HotelDetailsPage)
     try {
       const stored = sessionStorage.getItem('nuzul_booking_hotel');
-      if (!stored) return undefined;
-      const parsed: DisplayHotel = JSON.parse(stored);
-      // نتأكد أنه نفس الفندق بالـ id
-      return String(parsed.id) === String(id) ? parsed : undefined;
-    } catch { return undefined; }
-  })();
+      if (stored) {
+        const parsed: DisplayHotel = JSON.parse(stored);
+        if (String(parsed.id) === String(id)) {
+          setHotel(parsed);
+          setLoading(false);
+          return;
+        }
+      }
+    } catch { /* ignore */ }
 
-  const resolveNumericHotelId = useCallback((hotelName: string, hotelId: string | number): number => {
-    // إذا كان id رقمياً (من الباك اند) نستخدمه مباشرة
-    if (typeof hotelId === 'number') return hotelId;
-    const numericId = parseInt(hotelId);
-    if (!isNaN(numericId)) return numericId;
-    // fallback بالاسم
-    const cleanName = hotelName.replace(/\([^)]*\)/g, '').trim();
-    const match = hotels.find(h =>
-      h.name.includes(cleanName.slice(0, 15)) ||
-      cleanName.includes(h.name.replace(/\([^)]*\)/g, '').trim().slice(0, 10))
-    );
-    if (match) return match.id;
-
-    const STATIC_MAP: Record<string, number> = {
-      'hotel-dama-rose': 1,
-      'hotel-four-seasons-dam': 1,
-      'hotel-beit-al-wali': 3,
-      'hotel-sheraton-dam': 4,
-      'hotel-afamia-hama': 2,
-      'hotel-afamia-resort-lat': 2,
-      'hotel-shahba-aleppo': 0,
-    };
-    return STATIC_MAP[String(hotelId)] ?? 0;
-  }, [hotels]);
-
-  const findHotelInStore = (hid: string | undefined) => {
-    if (!hid) return undefined;
-    return hotels.find((h) => {
-      if (!isNaN(Number(hid))) return Number(h.id) === Number(hid);
-      const slug = hid.toLowerCase();
-      return (
-        (slug.includes('dama-rose') && h.name.includes('داما روز')) ||
-        (slug.includes('afamia') && h.name.includes('أفاميا')) ||
-        (slug.includes('wali') && h.name.includes('الوالي')) ||
-        (slug.includes('sheraton') && h.name.includes('الشيراتون')) ||
-        (slug.includes('mamlooka') && h.name.includes('المملوكة')) ||
-        (slug.includes('shahba') && h.name.includes('شهباء')) ||
-        (slug.includes('junada') && h.name.includes('جونادا')) ||
-        h.id.toString() === hid
-      );
-    });
-  };
-
-  const fallbackHotels = SYRIA_HOTELS.map((h) => ({
-    ...h,
-    status: 'active' as const,
-    tag: 'فنادق سوريا',
-    image: h.imageUrl,
-    amenities: h.features,
-    price: h.discountPrice ?? h.pricePerNight,
-    rooms: 12,
-    rating: h.rating,
-    id: h.id,
-    country: SYRIA_COUNTRY_NAME,
-  }));
-
-  const findHotelFallback = (hid: string | undefined) => {
-    if (!hid) return undefined;
-    const byNumeric = Number(hid);
-    const slug = hid.toLowerCase();
-    return fallbackHotels.find((h) => {
-      if (!isNaN(byNumeric)) return Number(h.id) === byNumeric;
-      return (
-        (slug.includes('dama-rose') && h.name.includes('داما روز')) ||
-        (slug.includes('afamia') && h.name.includes('أفاميا')) ||
-        (slug.includes('wali') && h.name.includes('الوالي')) ||
-        (slug.includes('sheraton') && h.name.includes('الشيراتون')) ||
-        (slug.includes('mamlooka') && h.name.includes('المملوكة')) ||
-        (slug.includes('shahba') && h.name.includes('شهباء')) ||
-        (slug.includes('junada') && h.name.includes('جونادا')) ||
-        h.id.toString() === hid
-      );
-    });
-  };
-
-  // الأولوية: state → store → fallback
-  const hotel = hotelFromState || findHotelInStore(id) || findHotelFallback(id);
+    // ثانياً: نجيبه من الـ API
+    hotelsApi.list()
+      .then(res => {
+        if (res.success) {
+          const found = res.hotels.find(h => String(h.id) === String(id));
+          if (found) {
+            setHotel({
+              id:           String(found.id),
+              name:         found.name,
+              provinceId:   String(found.province_id ?? ''),
+              provinceName: found.province_name ?? '',
+              city:         found.city,
+              country:      found.country ?? 'سوريا',
+              image:        found.image ?? found.image_url ?? '',
+              rating:       found.rating ?? 4.0,
+              stars:        found.stars ?? 3,
+              price:        found.price ?? found.price_per_night ?? 0,
+              originalPrice: (found.price_per_night && found.price_per_night !== found.price)
+                ? found.price_per_night : undefined,
+              amenities:    found.amenities ?? [],
+              offerText:    found.offer_text ?? undefined,
+              tag:          found.tag ?? undefined,
+            });
+          }
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [id]);
 
   // بيانات الضيف الفعلي — مستقلة عن بيانات الحساب
   const [guestName,  setGuestName]  = useState('');
@@ -169,6 +127,16 @@ export default function BookHotelPage() {
 
   const total = hotel ? nights * hotel.price * guests : 0;
 
+  if (loading) return (
+    <Layout>
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 300, gap: 10, color: '#0E5C4A', fontFamily: "'Tajawal',sans-serif" }}>
+        <Loader2 size={22} style={{ animation: 'spin 1s linear infinite' }} />
+        <span>جاري تحميل بيانات الفندق...</span>
+        <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
+      </div>
+    </Layout>
+  );
+
   if (!hotel) return (
     <Layout>
       <div style={S.notFound}>
@@ -191,7 +159,7 @@ export default function BookHotelPage() {
     setSubmitting(true);
     setSubmitError('');
     try {
-      const numericHotelId = resolveNumericHotelId(hotel.name, hotel.id);
+      const numericHotelId = parseInt(String(hotel.id)) || 0;
       const res = await bookingsApi.create({
         hotel_id:    numericHotelId,
         hotel_name:  hotel.name,
