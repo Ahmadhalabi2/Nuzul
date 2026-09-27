@@ -36,8 +36,9 @@ interface RawHotelApi {
   stars?: number;
   price?: number;
   price_per_night?: number;
-  amenities?: string[];
+  amenities?: string[] | string;
   offer_text?: string;
+  tag?: string;
 }
 
 // ============================================================================
@@ -65,20 +66,28 @@ function mapHotelResponse(h: RawHotelApi): DisplayHotel {
   const price = h.price ?? h.price_per_night;
   const hasDiscount = !!h.price_per_night && h.price_per_night !== h.price;
 
+  // amenities ممكن يجي string أو array من الـ API
+  const amenities = Array.isArray(h.amenities)
+    ? h.amenities
+    : typeof h.amenities === 'string' && h.amenities
+      ? (h.amenities as string).split(/[,،\n]/).map((s: string) => s.trim()).filter(Boolean)
+      : [];
+
   return {
-    id: String(h.id),
-    name: h.name,
-    provinceId: String(h.province_id ?? ''),
+    id:           String(h.id),
+    name:         h.name,
+    provinceId:   String(h.province_id ?? ''),
     provinceName: h.province_name ?? '',
-    city: h.city,
-    country: h.country ?? 'سوريا',
-    image: h.image ?? h.image_url ?? '',
-    rating: h.rating ?? 4.0,
-    stars: h.stars ?? 3,
+    city:         h.city,
+    country:      h.country ?? 'سوريا',
+    image:        h.image ?? h.image_url ?? '',
+    rating:       h.rating ?? 4.0,
+    stars:        h.stars ?? 3,
     price,
     originalPrice: hasDiscount ? h.price_per_night : undefined,
-    amenities: h.amenities ?? [],
-    offerText: h.offer_text ?? undefined,
+    amenities,
+    offerText:    h.offer_text ?? undefined,
+    tag:          h.tag ?? undefined,
   };
 }
 
@@ -321,14 +330,12 @@ function OffersSwiper({ hotels, onOpen }: { hotels: DisplayHotel[]; onOpen: (h: 
   const prev = useCallback(() => setCurrent(c => (c - 1 + total) % total), [total]);
   const next = useCallback(() => setCurrent(c => (c + 1) % total), [total]);
 
-  // Auto-play
   useEffect(() => {
     if (total <= 1) return;
     const timer = setInterval(next, OFFERS_AUTOPLAY_MS);
     return () => clearInterval(timer);
   }, [next, total]);
 
-  // Touch / Mouse drag
   const onDragStart = (clientX: number) => {
     startX.current = clientX;
     setDragging(true);
@@ -341,8 +348,8 @@ function OffersSwiper({ hotels, onOpen }: { hotels: DisplayHotel[]; onOpen: (h: 
   const onDragEnd = () => {
     if (!dragging) return;
     setDragging(false);
-    if (diffX.current > SWIPE_THRESHOLD_PX) next();       // سحب يمين = التالي (RTL)
-    else if (diffX.current < -SWIPE_THRESHOLD_PX) prev();  // سحب يسار = السابق (RTL)
+    if (diffX.current > SWIPE_THRESHOLD_PX) next();
+    else if (diffX.current < -SWIPE_THRESHOLD_PX) prev();
     diffX.current = 0;
   };
 
@@ -414,23 +421,6 @@ function OffersSwiper({ hotels, onOpen }: { hotels: DisplayHotel[]; onOpen: (h: 
           </>
         )}
       </div>
-
-      {total > 1 && (
-        <div style={S.swiperDots}>
-          {hotels.map((h, i) => (
-            <button
-              key={h.id}
-              aria-label={`الانتقال للعرض ${i + 1}`}
-              onClick={() => setCurrent(i)}
-              style={{
-                ...S.swiperDot,
-                background: i === current ? PALETTE.pomegranate : PALETTE.line,
-                width: i === current ? 18 : 6,
-              }}
-            />
-          ))}
-        </div>
-      )}
     </div>
   );
 }
@@ -449,7 +439,6 @@ export default function HomePageUser() {
 
   const { hotels: allHotels, provinces, loading: loadingHotels } = useHotelsCatalog();
 
-  // ── فلترة ──────────────────────────────────────────────────────────────────
   const offerHotels = useMemo(
     () => allHotels.filter(h => !!h.offerText),
     [allHotels],
@@ -646,8 +635,6 @@ const S: Record<string, React.CSSProperties> = {
     cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
     fontSize: 18, zIndex: 10, transition: 'background 0.2s',
   },
-  swiperDots: { display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, marginTop: 12 },
-  swiperDot: { height: 6, borderRadius: 4, border: 'none', cursor: 'pointer', transition: 'width 0.25s, background 0.25s' },
 
   destPanel: { background: PALETTE.paper, border: `1px solid ${PALETTE.line}`, borderRadius: 18, padding: '22px 24px' },
   destHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18, flexWrap: 'wrap', gap: 8 },

@@ -177,6 +177,8 @@ class HotelSeeder extends Seeder
                     'amenities'      => $h['amen'],
                     'offer_text'     => $h['offer'],
                     'description'    => $h['desc'],
+                    'phone'          => $h['phone'] ?? null,
+                    'google_maps_url'=> $h['maps']  ?? null,
                 ]
             );
         }

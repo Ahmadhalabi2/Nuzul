@@ -190,7 +190,13 @@ class HotelController extends Controller
             'image_url'      => $h->image_url,
             'image_lobby'    => $h->image_lobby,
             'image_exterior' => $h->image_exterior,
-            'amenities'      => $h->amenities ?? [],
+            'phone'          => $h->phone,
+            'google_maps_url'=> $h->google_maps_url,
+            'amenities'      => is_array($h->amenities)
+                ? $h->amenities
+                : (is_string($h->amenities) && $h->amenities
+                    ? array_values(array_filter(array_map('trim', preg_split('/[,،\n]/', $h->amenities))))
+                    : []),
             'offer_text'     => $h->offer_text,
             'description'    => $h->description,
             'created_at'     => $h->created_at?->toISOString(),

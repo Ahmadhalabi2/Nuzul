@@ -88,7 +88,11 @@ export default function BookHotelPage() {
               price:        found.price ?? found.price_per_night ?? 0,
               originalPrice: (found.price_per_night && found.price_per_night !== found.price)
                 ? found.price_per_night : undefined,
-              amenities:    found.amenities ?? [],
+              amenities:    Array.isArray(found.amenities)
+                ? found.amenities
+                : typeof found.amenities === 'string' && found.amenities
+                  ? (found.amenities as string).split(/[,،\n]/).map((s: string) => s.trim()).filter(Boolean)
+                  : [],
               offerText:    found.offer_text ?? undefined,
               tag:          found.tag ?? undefined,
             });

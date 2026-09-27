@@ -27,6 +27,8 @@ class Hotel extends Model
         'amenities',
         'offer_text',
         'description',
+        'phone',
+        'google_maps_url',
     ];
 
     protected function casts(): array
