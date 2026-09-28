@@ -8,7 +8,7 @@ import {
   ArrowRight, MapPin, Star, Coins, Tag,
   Wifi, Coffee, Car, Dumbbell, Waves, Wind,
   ChevronRight, CalendarCheck, Share2, Heart,
-  CheckCircle2, Loader2,
+  CheckCircle2, Loader2, Phone, ExternalLink,
 } from 'lucide-react';
 import Layout from '../../components/Layout';
 import {
@@ -300,6 +300,81 @@ export default function HotelDetailsPage() {
                     </span>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* ── معلومات التواصل والموقع ── */}
+            {(hotel.phone || hotel.google_maps_url) && (
+              <div style={{
+                display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 28,
+              }}>
+                {hotel.phone && (
+                  <a
+                    href={`tel:${hotel.phone}`}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      flex: '1 1 200px', padding: '14px 18px',
+                      background: `${PALETTE.teal}12`,
+                      border: `1px solid ${PALETTE.teal}33`,
+                      borderRadius: 14, textDecoration: 'none',
+                      color: PALETTE.teal, fontWeight: 700, fontSize: 14,
+                      fontFamily: "'Tajawal',sans-serif",
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    <div style={{
+                      width: 36, height: 36, borderRadius: '50%',
+                      background: `${PALETTE.teal}20`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      flexShrink: 0,
+                    }}>
+                      <Phone size={16} color={PALETTE.teal} />
+                    </div>
+                    <div>
+                      <p style={{ margin: '0 0 2px', fontSize: 11, color: PALETTE.ink400, fontWeight: 600 }}>
+                        اتصل بالفندق
+                      </p>
+                      <p style={{ margin: 0, fontSize: 14, fontWeight: 800, direction: 'ltr' }}>
+                        {hotel.phone}
+                      </p>
+                    </div>
+                  </a>
+                )}
+
+                {hotel.google_maps_url && (
+                  <a
+                    href={hotel.google_maps_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      flex: '1 1 200px', padding: '14px 18px',
+                      background: `${PALETTE.brass}12`,
+                      border: `1px solid ${PALETTE.brass}33`,
+                      borderRadius: 14, textDecoration: 'none',
+                      color: '#8B681B', fontWeight: 700, fontSize: 14,
+                      fontFamily: "'Tajawal',sans-serif",
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    <div style={{
+                      width: 36, height: 36, borderRadius: '50%',
+                      background: `${PALETTE.brass}20`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      flexShrink: 0,
+                    }}>
+                      <MapPin size={16} color={PALETTE.brass} />
+                    </div>
+                    <div>
+                      <p style={{ margin: '0 0 2px', fontSize: 11, color: PALETTE.ink400, fontWeight: 600 }}>
+                        موقع الفندق
+                      </p>
+                      <p style={{ margin: 0, fontSize: 14, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 4 }}>
+                        عرض على الخريطة <ExternalLink size={12} />
+                      </p>
+                    </div>
+                  </a>
+                )}
               </div>
             )}
 

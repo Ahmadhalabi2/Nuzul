@@ -28,6 +28,8 @@ export interface ApiHotel {
   offer_text: string | null;
   tag: string | null;
   status: string | null;
+  phone: string | null;
+  google_maps_url: string | null;
 }
 
 export interface ApiBooking {
